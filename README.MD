@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/cortex-tip"><img src="https://img.shields.io/npm/v/cortex-tip.svg?style=flat-square&color=00e5ff" alt="npm version"></a>
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D16.0.0-69f0ae.svg?style=flat-square" alt="node version"></a>
+  <a href="https://pypi.org/project/cortex-tip/"><img src="https://img.shields.io/pypi/v/cortex-tip?style=flat-square&color=3775A9" alt="PyPI version"></a>
+  <a href="https://python.org/"><img src="https://img.shields.io/badge/python-%3E%3D3.8-3776AB.svg?style=flat-square" alt="python version"></a>
   <a href="https://mariadb.org/"><img src="https://img.shields.io/badge/database-MariaDB%2011.4%20LTS-ffab40.svg?style=flat-square" alt="database"></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/container-Docker%20Compose-00b0ff.svg?style=flat-square" alt="docker"></a>
 </p>
@@ -21,12 +21,34 @@ Ele atua como o cérebro central de inteligência da sua infraestrutura de segur
 
 ---
 
-## ⚡ Inicialização Rápida via NPX (Zero Instalação)
+## ⚡ Instalação (Get Started)
 
-Você não precisa configurar ambientes virtuais Python ou instalar dependências manualmente. Com o **Docker Desktop** ativo, basta rodar:
+Instale globalmente no seu sistema operacional via **pipx** (recomendado):
 
 ```bash
-npx cortex-tip
+pipx install cortex-tip
+```
+
+Ou com **uv**:
+
+```bash
+uv tool install cortex-tip
+```
+
+Ou diretamente com **pip**:
+
+```bash
+pip install cortex-tip
+```
+
+---
+
+## 🚀 Inicialização Rápida
+
+Com o Docker ativo na máquina, basta digitar no terminal:
+
+```bash
+cortex-tip
 ```
 
 O comando baixa e inicializa automaticamente a stack completa:
@@ -35,15 +57,16 @@ O comando baixa e inicializa automaticamente a stack completa:
 
 Acesse o painel no navegador: **`http://localhost:80`**
 
-### Comandos de Gerenciamento do CLI:
+### Comandos de Gerenciamento da CLI:
 
 | Comando | Descrição |
 | :--- | :--- |
-| `npx cortex-tip` | Inicia a plataforma completa (Banco MariaDB + Interface Web) |
-| `npx cortex-tip status` | Exibe o estado de execução e integridade dos contêineres |
-| `npx cortex-tip logs` | Acompanha os logs operacionais e de eventos em tempo real |
-| `npx cortex-tip stop` | Pausa os serviços mantendo todos os dados e volumes salvos |
-| `npx cortex-tip db:up` | Sobe exclusivamente o contêiner do MariaDB na porta `3306` |
+| `cortex-tip` ou `cortex-tip start` | Inicia a plataforma completa (Banco MariaDB + Interface Web) |
+| `cortex-tip status` | Exibe o estado de execução e integridade dos contêineres |
+| `cortex-tip logs` | Acompanha os logs operacionais e de eventos em tempo real |
+| `cortex-tip update` | Atualiza automaticamente para a última imagem do Docker Hub |
+| `cortex-tip stop` | Pausa os serviços mantendo todos os dados e volumes salvos |
+| `cortex-tip db:up` | Sobe exclusivamente o contêiner do MariaDB na porta `3306` |
 
 ---
 
@@ -96,18 +119,18 @@ Ao consultar qualquer indicador de comprometimento (IP, Domínio, Hash SHA256/MD
 
 ```text
                ┌────────────────────────┐
-               │  Navegador do SOC    │
+               │    Navegador do SOC    │
                └───────────┬────────────┘
                            │ HTTP: 80
                            ▼
 ┌─────────────────────────────────────────────────────────┐
-│          CORTEX TIP DOCKER ENVIRONMENT             │
-│                                                    │
-│  ┌───────────────────────┐   ┌───────────────────────┐ │
-│  │ cortex-app (Flask)  │   │    cortex-mariadb   │ │
-│  │ - Motor de IA / SOC │◄──┤  (MariaDB 11.4 LTS) │ │
-│  │ - Enriquecimento    │   │ - Volume Persistente│ │
-│  └───────────┬───────────┘   └───────────────────────┘ │
+│              CORTEX TIP DOCKER ENVIRONMENT              │
+│                                                         │
+│  ┌───────────────────────┐   ┌───────────────────────┐  │
+│  │   cortex-app (Flask)  │   │     cortex-mariadb    │  │
+│  │   - Motor de IA / SOC │◄──┤   (MariaDB 11.4 LTS)  │  │
+│  │   - Enriquecimento    │   │   - Volume Persistente│  │
+│  └───────────┬───────────┘   └───────────────────────┘  │
 └──────────────┼──────────────────────────────────────────┘
                │
                ├──► Instância MISP (API REST / MySQL)
