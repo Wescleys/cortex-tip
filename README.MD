@@ -1,8 +1,8 @@
-# Cortex TIP — Threat Intelligence & SOC Platform
-
 <p align="center">
 <a href="https://pypi.org/project/cortex-tip/"><img src="static/cortex.png"
 </p>
+
+# Cortex TIP — Threat Intelligence & SOC Platform
 
 <p align="center">
   <strong>Plataforma para Gestão de Threat Intelligence, Enriquecimento de IOCs e Apoio a Operações de SOC com IA Local.</strong>
