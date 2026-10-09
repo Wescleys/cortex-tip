@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuração Inicial - Cortex TIP</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <div class="auth-page-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <img src="{{ platform_logo }}" alt="Logo Cortex">
+                <h3>Inicialização da Plataforma</h3>
+                <p>Crie o primeiro usuário <strong>Super Administrador</strong> para assumir o controle do Cortex.</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert-box {{ 'error' if category == 'error' else 'warning' }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form action="/setup" method="POST" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label><i class="fas fa-user"></i> Nome</label>
+                        <input type="text" name="first_name" placeholder="Ex: Usuário" required autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-user-tag"></i> Sobrenome</label>
+                        <input type="text" name="last_name" placeholder="Ex: Administrador" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-envelope"></i> E-mail (Login de Acesso)</label>
+                    <input type="email" name="email" placeholder="[EMAIL_ADDRESS]" required>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-lock"></i> Senha Mestra</label>
+                    <input type="password" name="password" placeholder="Mínimo 8 caracteres" minlength="8" required>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-shield-alt"></i> Confirmar Senha</label>
+                    <input type="password" name="confirm_password" placeholder="Repita a senha" minlength="8" required>
+                </div>
+
+                <button type="submit" class="btn-primary-block">
+                    <i class="fas fa-rocket"></i> Criar Administrador & Inicializar
+                </button>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <title>Manual de Operação e Administração - Cortex TIP</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0d12;
+            --bg-secondary: #121820;
+            --bg-card: #161f2b;
+            --bg-card-hover: #1c2737;
+            --border: #222f3e;
+            --border-highlight: #334458;
+            --text-main: #ffffff;
+            --text-muted: #ffffff;
+            --accent: #00e5ff;
+            --accent-rgb: 0, 229, 255;
+            --accent-green: #69f0ae;
+            --accent-orange: #ffab40;
+            --accent-red: #ff5252;
+            --accent-purple: #b388ff;
+            --sidebar-width: 300px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            line-height: 1.6;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 25px 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand i {
+            font-size: 24px;
+            color: var(--accent);
+            text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.5);
+        }
+
+        .brand-text h2 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #fff;
+        }
+
+        .brand-text span {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px 10px 36px;
+            color: var(--text-main);
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.2);
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffffff;
+            margin: 18px 0 8px 10px;
+            font-weight: 700;
+        }
+
+        .nav-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-links a {
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            background-color: var(--bg-card);
+            color: #fff;
+            border-left: 3px solid var(--accent);
+        }
+
+        .nav-links a i {
+            font-size: 14px;
+            width: 18px;
+            text-align: center;
+            color: var(--accent);
+        }
+
+        /* Main Content Container */
+        .content {
+            flex: 1;
+            padding: 40px 60px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header Area */
+        .doc-header {
+            background: linear-gradient(135deg, #121820 0%, #162436 100%);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 35px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .doc-header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background: radial-gradient(circle, rgba(var(--accent-rgb), 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .doc-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .doc-header p {
+            color: #ffffff;
+            font-size: 15px;
+            max-width: 800px;
+            line-height: 1.6;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+        }
+
+        .badge i {
+            color: var(--accent);
+        }
+
+        /* Section Card */
+        .doc-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 35px;
+            margin-bottom: 35px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            scroll-margin-top: 30px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-header i {
+            font-size: 22px;
+            color: var(--accent);
+            background: rgba(var(--accent-rgb), 0.1);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .section-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: #ffffff; font-weight: 400;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        h3 {
+            font-size: 17px;
+            font-weight: 600;
+            color: #fff;
+            margin: 25px 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3 i {
+            color: var(--accent);
+            font-size: 14px;
+        }
+
+        /* Tables */
+        .table-responsive {
+            overflow-x: auto;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th {
+            background-color: var(--bg-card);
+            color: #fff;
+            padding: 12px 16px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            color: #ffffff; font-weight: 400;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Callout Boxes */
+        .callout {
+            border-left: 4px solid var(--accent);
+            background: var(--bg-card);
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+            font-size: 13.5px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        .callout-success {
+            border-left-color: var(--accent-green);
+            background: rgba(105, 240, 174, 0.06);
+        }
+
+        .callout-warning {
+            border-left-color: var(--accent-orange);
+            background: rgba(255, 171, 64, 0.06);
+        }
+
+        .callout-danger {
+            border-left-color: var(--accent-red);
+            background: rgba(255, 82, 82, 0.06);
+        }
+
+        .callout i {
+            font-size: 18px;
+            margin-top: 2px;
+        }
+
+        .callout-success i { color: var(--accent-green); }
+        .callout-warning i { color: var(--accent-orange); }
+        .callout-danger i { color: var(--accent-red); }
+
+        /* Code Blocks */
+        .code-container {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 18px 0;
+            overflow: hidden;
+        }
+
+        .code-header {
+            background: var(--bg-card);
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: #ffffff;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: #ffffff;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        pre {
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #58a6ff;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12.5px;
+            color: #79c0ff;
+        }
+
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--border-highlight);
+            transform: translateY(-2px);
+        }
+
+        .feature-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .feature-card-header i {
+            font-size: 18px;
+            color: var(--accent);
+        }
+
+        .feature-card-header h4 {
+            font-size: 15px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .feature-card p {
+            font-size: 13px;
+            margin: 0;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+
+        /* Steps */
+        .step-list {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .step-item {
+            display: flex;
+            gap: 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 18px;
+            border-radius: 8px;
+        }
+
+        .step-num {
+            width: 32px;
+            height: 32px;
+            background: rgba(var(--accent-rgb), 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(var(--accent-rgb), 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .step-content h4 {
+            font-size: 15px;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .step-content p {
+            margin: 0;
+            font-size: 13px;
+            color: #ffffff;
+        }
+
+        /* Print Styles */
+        @media print {
+            .sidebar { display: none; }
+            .content { padding: 0; max-width: 100%; }
+            body { background: #fff; color: #000; }
+            .doc-section, .doc-header { background: #fff; border: 1px solid #ccc; box-shadow: none; color: #000; }
+            h1, h2, h3, h4, strong { color: #000 !important; }
+            p, td, .badge { color: #333 !important; }
+            .copy-btn { display: none; }
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: static; }
+            .content { padding: 25px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navegação Lateral -->
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="static/cortex.png" alt="Cortex Logo" style="height: 40px; width: auto; object-fit: contain; filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.4));">
+            </div>
+        </div>
+
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="docSearch" placeholder="Buscar neste manual..." onkeyup="filterDocs()">
+        </div>
+
+        <div class="nav-section-title">Guia Rápido</div>
+        <ul class="nav-links">
+            <li><a href="#visao-geral" class="active"><i class="fas fa-compass"></i> 1. Visão Geral</a></li>
+            <li><a href="#arquitetura"><i class="fas fa-network-wired"></i> 2. Arquitetura</a></li>
+            <li><a href="#instalacao"><i class="fas fa-download"></i> 3. Instalação & Setup</a></li>
+            <li><a href="#primeiro-acesso"><i class="fas fa-user-shield"></i> 4. Primeiro Acesso</a></li>
+            <li><a href="#rbac"><i class="fas fa-users-cog"></i> 5. Usuários & RBAC</a></li>
+            <li><a href="#configuracoes"><i class="fas fa-sliders-h"></i> 6. Painel de Configurações</a></li>
+            <li><a href="#dashboard"><i class="fas fa-chart-line"></i> 7. Dashboard & Feeds</a></li>
+            <li><a href="#busca-analise"><i class="fas fa-search-plus"></i> 8. Busca & Analista IA</a></li>
+            <li><a href="#misp-ingestao"><i class="fas fa-plus-circle"></i> 9. Ingestão no MISP</a></li>
+            <li><a href="#auditoria"><i class="fas fa-history"></i> 10. Trilha de Auditoria</a></li>
+            <li><a href="#integracoes-json"><i class="fas fa-code"></i> 11. Feeds para Firewalls</a></li>
+            <li><a href="#seguranca-hardening"><i class="fas fa-shield-virus"></i> 12. Segurança & Hardening</a></li>
+            <li><a href="#backup-migracao"><i class="fas fa-hdd"></i> 13. Backup & Migração</a></li>
+        </ul>
+    </aside>
+
+    <!-- Conteúdo Principal -->
+    <main class="content">
+
+        <!-- Header -->
+        <header class="doc-header">
+            <h1 style="margin: 0; color: #ffffff;"><i class="fas fa-book-open"></i> Manual Oficial da Plataforma Cortex TIP</h1>
+            <p style="margin: 6px 0 0 0; color: #ffffff; font-size: 15px;">Guia completo de engenharia, administração de infraestrutura e procedimentos operacionais para analistas de SOC e administradores de Threat Intelligence.</p>
+            <div class="header-meta">
+                <div class="badge"><i class="fas fa-code-branch"></i> Versão: 2.5 (SOC Production)</div>
+                <div class="badge"><i class="fas fa-layer-group"></i> Stack: Python 3.13 / Flask / PyMISP / SQLite</div>
+                <div class="badge"><i class="fas fa-robot"></i> LLMs: Ollama Local (DeepSeek-R1 / Qwen)</div>
+            </div>
+        </header>
+
+        <!-- Seção 1: Visão Geral -->
+        <section id="visao-geral" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-compass"></i>
+                <h2>1. Visão Geral da Plataforma</h2>
+            </div>
+            <p>
+                O <strong>Cortex TIP (Threat Intelligence Platform)</strong> é uma solução de inteligência de ameaças concebida para atuar como o ponto central de coleta, correlação, investigação e defesa perimetral em Centros de Operações de Segurança (SOC).
+            </p>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-database"></i>
+                        <h4>Sincronização Híbrida MISP</h4>
+                    </div>
+                    <p>Conexão ultra-rápida via leitura direta do MySQL para bancos volumosos aliada à API REST oficial do PyMISP para operações de escrita segura.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-robot"></i>
+                        <h4>Analista SOC com IA</h4>
+                    </div>
+                    <p>Inteligência Artificial generativa operando localmente no Ollama (DeepSeek-R1, Qwen2.5) gerando vereditos e regras de contenção para Firewalls e EDRs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-project-diagram"></i>
+                        <h4>Grafo de Correlação</h4>
+                    </div>
+                    <p>Visualização dinâmica em malha interativa relacionando o IOC analisado a campanhas, táticas MITRE ATT&CK e infraestrutura de rede.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-fire-extinguisher"></i>
+                        <h4>Defesa Ativa Perimetral</h4>
+                    </div>
+                    <p>Listas e feeds limpos em tempo real prontos para consumo por Firewalls (Fortinet, pfSense, Palo Alto), DNS RPZ e ferramentas de SIEM.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção 2: Arquitetura -->
+        <section id="arquitetura" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-network-wired"></i>
+                <h2>2. Arquitetura de Componentes</h2>
+            </div>
+            <p>
+                A arquitetura foi projetada para ser leve, soberana e livre de dependências pesadas externas, operando de forma autônoma:
+            </p>
+            <div class="code-container">
+                <div class="code-header">
+                    <span>DIAGRAMA DE ARQUITETURA - FLUXO DE DADOS</span>
+                </div>
+                <pre>
+ [Navegador do Analista] ──(HTTPS/CSRF Token)──► [CORTEX TIP SERVER :80]
+                                                          │
+   ┌──────────────────────────────────────────────────────┴──────────────────────────────────────────────────────┐
+   │                                                    FLASK BACKEND                                            │
+   │  ┌───────────────────────┐  ┌───────────────────────┐  ┌─────────────────────────────────────────────────┐  │
+   │  │ cortex.py (Web/APIs)  │  │   auth.py (RBAC/CSRF) │  │ db_system.py (SQLite: cortex_system.db)         │  │
+   │  └───────────┬───────────┘  └───────────────────────┘  │  - Usuários, Senhas Hasheadas, Configs, Logs    │  │
+   │              │                                         └─────────────────────────────────────────────────┘  │
+   │              ├───────────────────────────────────────┬───────────────────────────────────┐                  │
+   │              ▼                                       ▼                                   ▼                  │
+   │  ┌───────────────────────┐               ┌───────────────────────┐           ┌───────────────────────┐      │
+   │  │    misp_service.py    │               │ enrichment_service.py │           │    ai_service.py      │      │
+   │  │  - Leitura: MySQL     │               │  - VirusTotal v3      │           │  - Ollama Local (AI)  │      │
+   │  │  - Escrita: PyMISP    │               │  - AbuseIPDB v2       │           │  - Gemini/OpenAI/Clau.│      │
+   │  └───────────┬───────────┘               │  - GeoIP / Leaflet    │           └───────────┬───────────┘      │
+   │              │                           └───────────┬───────────┘                       │                  │
+   └──────────────┼───────────────────────────────────────┼───────────────────────────────────┼──────────────────┘
+                  ▼                                       ▼                                   ▼
+        [Instância MISP Core]               [APIs de Inteligência Externa]          [Servidor de IA Ollama]
+        - MySQL Port 3306                   - VirusTotal v3 REST                    - Port 11434 (DeepSeek R1)
+        - PyMISP Port 443/5000              - AbuseIPDB v2 REST</pre>
+            </div>
+        </section>
+
+        <!-- Seção 3: Instalação & Setup -->
+        <section id="instalacao" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-download"></i>
+                <h2>3. Requisitos de Sistema & Instalação</h2>
+            </div>
+            <h3><i class="fas fa-microchip"></i> Requisitos de Hardware e Software</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Recurso</th>
+                            <th>Mínimo Recomendado</th>
+                            <th>Ambiente de Produção Recomendado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Sistema Operacional</strong></td>
+                            <td>Linux (Ubuntu 22.04 LTS / Debian 12 / Rocky 9) ou Windows Server</td>
+                            <td>Linux Ubuntu 22.04 / 24.04 LTS x86_64</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Processador (CPU)</strong></td>
+                            <td>2 vCPUs</td>
+                            <td>4 a 8 vCPUs (ou GPU NVIDIA para aceleração de LLM)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Memória RAM</strong></td>
+                            <td>4 GB (se Ollama estiver em servidor remoto)</td>
+                            <td>16 GB a 32 GB (se Ollama rodar localmente com DeepSeek-R1)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Python</strong></td>
+                            <td>Python 3.10 ou superior</td>
+                            <td>Python 3.11, 3.12 ou 3.13</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3><i class="fas fa-terminal"></i> Passo a Passo de Instalação</h3>
+            <div class="code-container">
+                <div class="code-header">
+                    <span>TERMINAL / BASH</span>
+                    <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i> Copiar</button>
+                </div>
+                <pre><code># 1. Clonar ou copiar o diretório do projeto:
+cd /opt/cortex
+
+# 2. Criar e ativar o ambiente virtual Python:
+python3 -m venv venv
+source venv/bin/activate  # No Windows: venv\Scripts\activate
+
+# 3. Instalar as dependências oficiais:
+pip install flask requests pymisp mysql-connector-python
+
+# 4. Iniciar a plataforma Cortex TIP:
+python cortex.py</code></pre>
+            </div>
+            <div class="callout callout-success">
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    <strong>Criação Automática de Banco:</strong> Você não precisa executar scripts SQL manuais. Ao iniciar, a função <code>db_system.init_db()</code> verifica e cria o arquivo <code>cortex_system.db</code> com todas as tabelas e índices necessários automaticamente.
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção 4: Primeiro Acesso -->
+        <section id="primeiro-acesso" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-user-shield"></i>
+                <h2>4. Primeiro Acesso & Provisionamento Inicial (/setup)</h2>
+            </div>
+            <p>
+                O Cortex opera com um fluxo de inicialização protegido (estilo Portainer):
+            </p>
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Acesso Inicial ao Navegador</h4>
+                        <p>Ao abrir <code>http://&lt;IP_DO_SERVIDOR&gt;/</code> no navegador com o banco recém-criado, o sistema detecta que não existem contas e redireciona automaticamente para <code>/setup</code>.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Definição da Credencial Mestra (Super Admin)</h4>
+                        <p>Informe o Nome, Sobrenome, E-mail corporativo e a Senha Mestra do primeiro Administrador.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Política de Senha Forte Mandatória</h4>
+                        <p>Por conformidade com os controles de segurança (VULN-09), a senha mestre deve possuir no mínimo <strong>12 caracteres</strong>, contendo letras maiúsculas, minúsculas, números e caracteres especiais.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Bloqueio Permanente da Rota</h4>
+                        <p>Assim que o administrador inicial é criado, o sistema efetua o login automático e fecha permanentemente a rota <code>/setup</code> contra novos cadastros.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção 5: RBAC & Usuários -->
+        <section id="rbac" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-users-cog"></i>
+                <h2>5. Gestão de Usuários e Perfis de Acesso (RBAC)</h2>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Perfil / Role</th>
+                            <th>Nível de Privilégio</th>
+                            <th>Permissões Concedidas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge" style="border-color: #ff5252; color: #ff5252;"><i class="fas fa-crown"></i> ADMIN</span></td>
+                            <td>Total</td>
+                            <td>Acesso irrestrito a configurações de sistema, chaves de API, gestão de usuários, ingestão de IOCs e auditoria.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge" style="border-color: #00e5ff; color: #00e5ff;"><i class="fas fa-user-ninja"></i> ANALISTA</span></td>
+                            <td>Operacional</td>
+                            <td>Busca de IOCs, enriquecimento de inteligência, acionamento do Analista IA, cadastro de novos IOCs no MISP e consulta de auditoria.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge" style="border-color: #ffffff; color: #ffffff;"><i class="fas fa-eye"></i> VISUALIZADOR</span></td>
+                            <td>Somente Leitura</td>
+                            <td>Visualização do Dashboard, mapas de calor, feeds de notícias (THN/Bleeping) e consumo de listas públicas JSON.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3><i class="fas fa-window-maximize"></i> Gerenciamento via Modais (/users)</h3>
+            <p>
+                O Administrador pode gerenciar os operadores sem recarregar a tela:
+            </p>
+            <ul style="margin-left: 20px; color: #ffffff; font-size: 13.5px; line-height: 1.8;">
+                <li><strong>Novo Usuário:</strong> Modal para preenchimento de nome, e-mail, cargo e senha inicial.</li>
+                <li><strong>Editar Usuário:</strong> Permite trocar dados cadastrais, alterar o cargo, redefinir senhas ou suspender contas.</li>
+                <li><strong>Desativar Acesso:</strong> Suspende o login do operador instantaneamente sem apagar o histórico de auditoria dele.</li>
+                <li><strong>Excluir Usuário:</strong> Remove a conta. <em>Trava de segurança: o sistema não permite a exclusão da própria conta em uso nem do último administrador ativo da plataforma.</em></li>
+            </ul>
+        </section>
+
+        <!-- Seção 6: Configurações -->
+        <section id="configuracoes" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-sliders-h"></i>
+                <h2>6. Painel de Configurações Administrativas (/settings)</h2>
+            </div>
+            <p>
+                Acessível apenas por administradores para parametrizar integrações externas:
+            </p>
+
+            <h3><i class="fas fa-database"></i> 1. Integração com o MISP</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parâmetro</th>
+                            <th>Tipo / Descrição</th>
+                            <th>Finalidade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>misp_read_mode</code></td>
+                            <td>Seletor: <code>database</code> ou <code>api</code></td>
+                            <td>Define se a leitura/sincronização será feita via banco MySQL (recomendado) ou via chamadas REST da API.</td>
+                        </tr>
+                        <tr>
+                            <td><code>misp_url</code></td>
+                            <td>URL (Ex: <code>https://misp.corp.local</code>)</td>
+                            <td>Endereço da instância do MISP para criação de eventos oficiais via PyMISP.</td>
+                        </tr>
+                        <tr>
+                            <td><code>misp_api_key</code></td>
+                            <td>Token Alfanumérico de 40 caracteres</td>
+                            <td>Chave de automação criada no MISP para a conta de serviço do Cortex.</td>
+                        </tr>
+                        <tr>
+                            <td><code>misp_mysql_*</code></td>
+                            <td>Host, Porta (3306), Usuário, Senha e Banco</td>
+                            <td>Credenciais para conexão direta no MySQL do MISP para indexação em alta performance.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3><i class="fas fa-brain"></i> 2. Inteligência Artificial (Ollama / LLMs)</h3>
+            <p>
+                O Cortex suporta provedores locais soberanos (sem saída para internet) ou em nuvem:
+            </p>
+            <ul style="margin-left: 20px; color: #ffffff; font-size: 13.5px; line-height: 1.8;">
+                <li><strong>Provedor Padrão:</strong> <code>Ollama Local</code>.</li>
+                <li><strong>URL do Ollama:</strong> <code>http://localhost:11434</code> (ou IP do servidor GPU dedicado na rede interna).</li>
+                <li><strong>Botão "Detectar Modelos":</strong> Faz uma chamada segura à API do Ollama e preenche os modelos instalados no menu (ex: <code>deepseek-r1:8b</code>, <code>qwen2.5-coder:7b</code>).</li>
+                <li><strong>Provedores em Nuvem (Opcionais):</strong> Google Gemini, OpenAI ou Anthropic Claude via chaves de API individuais.</li>
+            </ul>
+
+            <h3><i class="fas fa-globe"></i> 3. Enriquecimento Externo (VirusTotal & AbuseIPDB)</h3>
+            <ul style="margin-left: 20px; color: #ffffff; font-size: 13.5px; line-height: 1.8;">
+                <li><strong>VirusTotal v3 API Key:</strong> Utilizada para obter detecções de motores antivírus, tags e vereditos globais de hashes e domínios.</li>
+                <li><strong>AbuseIPDB v2 API Key:</strong> Utilizada para obter o índice de confiança de abuso de IPs (0 a 100%), ISP e denúncias recentes de ataques.</li>
+            </ul>
+        </section>
+
+        <!-- Seção 7: Dashboard -->
+        <section id="dashboard" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-chart-line"></i>
+                <h2>7. Dashboard & Inteligência Contínua (/)</h2>
+            </div>
+            <p>
+                A tela inicial do Cortex foi desenhada para operadores de SOC monitorarem o cenário de ameaças em tempo real:
+            </p>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-globe-americas"></i>
+                        <h4>Mapa Dark de Ameaças</h4>
+                    </div>
+                    <p>Miniaturas e marcadores proporcionais à densidade de ataques por país, permitindo identificar focos geográficos de origem.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-rss"></i>
+                        <h4>Cyber News Feed (24h)</h4>
+                    </div>
+                    <p>Ingestão automática dos principais portais de notícias de segurança (*The Hacker News* e *BleepingComputer*) atualizados a cada recarga.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-card-header">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h4>Catálogo CISA KEV</h4>
+                    </div>
+                    <p>Exibição prioritária de vulnerabilidades com exploração ativa no mundo (*Known Exploited Vulnerabilities*) para direcionar correções do time de infraestrutura.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção 8: Busca & IA -->
+        <section id="busca-analise" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-search-plus"></i>
+                <h2>8. Busca Avançada, Enriquecimento e Analista SOC IA (/search)</h2>
+            </div>
+            <p>
+                A ferramenta principal de triagem e investigação do analista de segurança:
+            </p>
+
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Consulta Unificada de Indicadores</h4>
+                        <p>O campo aceita qualquer tipo de IOC: IPs IPv4/IPv6, FQDNs, URLs completas ou Hashes criptográficos (MD5, SHA1, SHA256). A plataforma busca correlações locais no banco de eventos do MISP.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Enriquecimento Automático Multi-Bases</h4>
+                        <p>Ao acionar a busca, dados reputacionais do VirusTotal (taxa de detecção x/70), AbuseIPDB (score de abuso e denúncias), ASN e localização geográfica com mapa interativo Leaflet são apresentados de forma condensada.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Grafo de Correlação Interativo</h4>
+                        <p>Alterne entre a visualização clássica e a aba <strong>Grafo</strong>. O motor Vis-Network conecta em tempo real o indicador aos eventos do MISP, atributos relacionados e táticas da matriz MITRE ATT&CK.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Copiloto de Análise SOC com IA (Ollama)</h4>
+                        <p>O analista pode clicar em <strong>"Análise do Analista SOC com IA"</strong>. O LLM avalia todos os metadados do indicador e retorna:</p>
+                        <ul style="margin: 8px 0 0 15px; font-size: 13px; color: #ffffff;">
+                            <li><strong>Veredito Claro:</strong> BENIGNO, SUSPEITO ou ALTAMENTE MALICIOSO.</li>
+                            <li><strong>Sumário Executivo:</strong> Explicação contextual da ameaça em linguagem técnica clara.</li>
+                            <li><strong>Cadeia de Raciocínio (Chain-of-Thought):</strong> Caixa retrátil com o pensamento analítico do DeepSeek-R1.</li>
+                            <li><strong>Comandos de Bloqueio Imediatos:</strong> Regras de IPTables e EDR prontas com botão de cópia com um clique.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Seção 9: Ingestão MISP -->
+        <section id="misp-ingestao" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-plus-circle"></i>
+                <h2>9. Ingestão de IOCs no MISP (/add-ioc)</h2>
+            </div>
+            <p>
+                Permite a analistas e administradores cadastrar novos indicadores diretamente no MISP oficial com conformidade e governança:
+            </p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Campo</th>
+                            <th>Comportamento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Category</strong></td>
+                            <td>Categorias oficiais do MISP (<em>Network activity, Payload delivery, Antivirus detection, External analysis, etc.</em>).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Type</strong></td>
+                            <td>Filtro dinâmico que exibe apenas tipos compatíveis com a categoria selecionada (<em>ip-dst, ip-src, domain, url, md5, sha256</em>).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Distribution</strong></td>
+                            <td>Nível de sigilo e compartilhamento (<em>This community only, All communities, Inherit event</em>).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Value</strong></td>
+                            <td>Suporta entrada em lote: você pode colar centenas de indicadores (um por linha) para ingestão simultânea.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Comment</strong></td>
+                            <td>Contextualização da investigação ou número de ticket de incidente.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Seção 10: Auditoria -->
+        <section id="auditoria" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-history"></i>
+                <h2>10. Trilha de Auditoria e Conformidade (/audit)</h2>
+            </div>
+            <p>
+                Todas as operações de criação de indicadores no MISP são salvas na tabela <code>ioc_audit_log</code> do banco SQLite local de forma imutável:
+            </p>
+            <ul style="margin-left: 20px; color: #ffffff; font-size: 13.5px; line-height: 1.8;">
+                <li><strong>Operador:</strong> Nome completo e e-mail corporativo de quem realizou a ingestão.</li>
+                <li><strong>Cargo:</strong> Role que o usuário possuía no momento da operação (Admin ou Analista).</li>
+                <li><strong>Indicador & Categoria:</strong> Valor do IOC e categoria atribuída no MISP.</li>
+                <li><strong>ID do Evento:</strong> Identificador do evento gerado no servidor MISP.</li>
+                <li><strong>Carimbo Temporal:</strong> Data e horário exato registrado pelo servidor Cortex.</li>
+            </ul>
+        </section>
+
+        <!-- Seção 11: Feeds JSON -->
+        <section id="integracoes-json" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-code"></i>
+                <h2>11. Endpoints de Integração Perimetral para Firewalls</h2>
+            </div>
+            <p>
+                O Cortex disponibiliza rotas HTTP públicas para alimentação automática de listas de bloqueio (*Blocklists / Dynamic Threat Feeds*):
+            </p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Endpoint</th>
+                            <th>Formato de Retorno</th>
+                            <th>Aplicação Prática no Perímetro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>GET /misp_ips.json</code></td>
+                            <td>Array JSON de IPs (<code>["1.2.3.4", "5.6.7.8"]</code>)</td>
+                            <td>Ingestão em firewalls perimetrais (pfSense pfBlockerNG, Fortinet External Threat Feeds, IPSet).</td>
+                        </tr>
+                        <tr>
+                            <td><code>GET /misp_domains.json</code></td>
+                            <td>Array JSON de Domínios</td>
+                            <td>Alimentação de DNS Sinkhole, Pi-hole corporativo, AdGuard Home ou zonas DNS RPZ.</td>
+                        </tr>
+                        <tr>
+                            <td><code>GET /misp_urls.json</code></td>
+                            <td>Array JSON de URLs</td>
+                            <td>Bloqueio de navegação em Web Application Firewalls (WAF) e Secure Web Gateways (SWG).</td>
+                        </tr>
+                        <tr>
+                            <td><code>GET /misp_hashes.json</code></td>
+                            <td>Array JSON de Hashes</td>
+                            <td>Blacklists personalizadas de EDRs (Crowdstrike, Defender for Endpoint) e Antivírus.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Seção 12: Hardening -->
+        <section id="seguranca-hardening" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-shield-virus"></i>
+                <h2>12. Segurança da Plataforma & Hardening (Auditoria 100% Mitigada)</h2>
+            </div>
+            <p>
+                O Cortex TIP foi homologado com 9 controles de segurança ativos de nível empresarial:
+            </p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Controle</th>
+                            <th>Mecanismo Implementado</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>VULN-01</strong></td>
+                            <td>Interactive Debugger</td>
+                            <td>Execução com <code>debug=False</code> em produção, desativando o console Werkzeug.</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-02</strong></td>
+                            <td>Credenciais Hardcoded</td>
+                            <td>Remoção de senhas em código-fonte; persistência estrita em banco de dados interno.</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-03</strong></td>
+                            <td>Blind SSRF</td>
+                            <td>Validação estrita de esquema HTTP/HTTPS e bloqueio contra IPs de metadados de nuvem (169.254.169.254).</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-04</strong></td>
+                            <td>Proteção de APIs</td>
+                            <td>Endpoints <code>/api/enrich</code> e <code>/api/ai-analyze</code> protegidos com autenticação (HTTP 401).</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-05</strong></td>
+                            <td>DOM Stored XSS</td>
+                            <td>Sanitização de entidades com <code>escapeHtml()</code> e uso de <code>DOMPurify</code> nas saídas de Markdown.</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-06</strong></td>
+                            <td>Defesa Anti-CSRF</td>
+                            <td>Padrão Synchronizer Token Pattern (tokens criptográficos 256-bit com validação em tempo constante).</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-07</strong></td>
+                            <td>Vazamento em Repositório</td>
+                            <td>Arquivo <code>.gitignore</code> configurado para isolar <code>cortex_system.db</code>, <code>logs/</code> e arquivos <code>.env</code>.</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-08</strong></td>
+                            <td>Cookies de Sessão</td>
+                            <td>Flags <code>HttpOnly</code> (bloqueia XSS), <code>SameSite=Lax</code> e suporte dinâmico a <code>Secure</code> via TLS.</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>VULN-09</strong></td>
+                            <td>Política de Senha</td>
+                            <td>Exigência mandatória de 12 caracteres com classes de caracteres (maiúscula, minúscula, número e símbolo).</td>
+                            <td><span class="badge" style="border-color: #69f0ae; color: #69f0ae;"><i class="fas fa-check"></i> Mitigado</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Seção 13: Backup & Migração -->
+        <section id="backup-migracao" class="doc-section">
+            <div class="section-header">
+                <i class="fas fa-hdd"></i>
+                <h2>13. Procedimentos de Backup & Migração de Servidor</h2>
+            </div>
+            <h3><i class="fas fa-save"></i> 1. Como Realizar Backup Completo</h3>
+            <p>
+                Toda a persistência da plataforma (usuários, hashes de senhas, chaves de API do MISP/IA/VirusTotal salvas e logs de auditoria) reside em um único arquivo:
+            </p>
+            <div class="callout callout-success">
+                <i class="fas fa-file-invoice"></i>
+                <div>
+                    <strong>Arquivo Único de Dados:</strong> <code>cortex_system.db</code> (localizado na raiz do projeto).
+                    Para fazer backup, basta copiar ou arquivar este arquivo para um local seguro.
+                </div>
+            </div>
+
+            <h3><i class="fas fa-server"></i> 2. Migração Rápida para Outro Servidor via SSH / Pen Drive</h3>
+            <p>Para transferir o Cortex para outro host, copie apenas as pastas essenciais:</p>
+            <div class="code-container">
+                <div class="code-header">
+                    <span>COMANDO DE COMPACTAÇÃO (EXCLUINDO PASTAS DESCARTÁVEIS)</span>
+                    <button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i> Copiar</button>
+                </div>
+                <pre><code># Compactar apenas os itens essenciais da plataforma:
+tar --exclude='__pycache__' --exclude='logs' --exclude='cache' --exclude='scratch' --exclude='.agents' -czvf cortex_deploy.tar.gz .
+
+# Transferir para o servidor de destino via SCP:
+scp cortex_deploy.tar.gz usuario@ip-servidor:/opt/cortex/</code></pre>
+            </div>
+        </section>
+
+        <footer style="text-align: center; margin-top: 50px; padding-top: 25px; border-top: 1px solid var(--border); font-size: 12px; color: #ffffff;">
+            Cortex TIP &bull; Plataforma Integrada de Inteligência de Ameaças &bull; Manual de Operações Técnicas &bull; Documento Oficial
+        </footer>
+
+    </main>
+
+    <script>
+        // Função para copiar blocos de código
+        function copyCode(button) {
+            const pre = button.closest('.code-container').querySelector('pre');
+            const text = pre.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHtml = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check" style="color: #69f0ae;"></i> Copiado!';
+                setTimeout(() => {
+                    button.innerHTML = originalHtml;
+                }, 2000);
+            });
+        }
+
+        // Busca/Filtro em tempo real no manual
+        function filterDocs() {
+            const query = document.getElementById('docSearch').value.toLowerCase();
+            const sections = document.querySelectorAll('.doc-section');
+            sections.forEach(section => {
+                const text = section.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    section.style.display = '';
+                } else {
+                    section.style.display = 'none';
+                }
+            });
+        }
+
+        // Atualização de link ativo na rolagem
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('.doc-section');
+            const navLinks = document.querySelectorAll('.nav-links a');
+            let current = '';
+
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (pageYOffset >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

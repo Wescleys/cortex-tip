@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threat Intelligence Platform</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet para o Mapa 2D de IOCs -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link rel="stylesheet" href="/static/styles.css?v=3.3">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/script.js" defer></script>
+</head>
+<body>
+
+    <div id="page-loader">
+        <img src="/static/malware.gif" alt="Malware Loading" class="loader-malware">
+        <div class="loader-text">CARREGANDO...</div>
+    </div>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li class="active"><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                {% if current_user and current_user.role in ['admin', 'analista'] %}
+                <li class="menu-label">Operações SOC</li>
+                <li>
+                    <a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a>
+                </li>
+                <li>
+                    <a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a>
+                </li>
+                {% endif %}
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li>
+                    <a href="/users"><i class="fas fa-users-cog"></i> Usuários</a>
+                </li>
+                <li>
+                    <a href="/settings"><i class="fas fa-cogs"></i> Configurações</a>
+                </li>
+                {% endif %}
+
+                {% if current_user %}
+                <li class="menu-label">Conta</li>
+                <li>
+                    <a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a>
+                </li>
+                {% endif %}
+                
+                <li class="menu-label">Listas MISP</li>
+                <li>
+                    <a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a>
+                </li>
+                <li>
+                    <a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a>
+                </li>
+                <li>
+                    <a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a>
+                </li>
+                <li>
+                    <a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a>
+                </li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <div class="top-bar">
+                <h2>MISP Intelligence Dashboard</h2>
+                
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="sync-status-badge" title="Horário da última sincronização dos indicadores MISP">
+                        <span class="sync-dot"></span>
+                        <i class="fas fa-history" style="color: #58a6ff; font-size: 13px;"></i>
+                        <span id="last-update" style="font-weight: 500;">Atualizando...</span>
+                    </div>
+
+                    <div class="user-menu-area">
+                        {% if current_user %}
+                        <a href="/profile" class="user-badge" style="text-decoration: none; cursor: pointer;" title="Meu Perfil">
+                            <i class="fas fa-user-shield"></i>
+                            <span>{{ current_user.first_name }}</span>
+                            <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                        </a>
+                        <a href="/logout" class="btn-auth-link btn-danger-hover" title="Sair"><i class="fas fa-sign-out-alt"></i></a>
+                        {% else %}
+                        <a href="/login" class="btn-auth-link"><i class="fas fa-sign-in-alt"></i> Entrar</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards Originais -->
+            <div class="stats-grid">
+                <div class="card card-blue">
+                    <h3 id="count-ips">0</h3>
+                    <p>IPs</p>
+                </div>
+                <div class="card card-orange">
+                    <h3 id="count-urls">0</h3>
+                    <p>URLs</p>
+                </div>
+                <div class="card card-green">
+                    <h3 id="count-domains">0</h3>
+                    <p>Domínios</p>
+                </div>
+                <div class="card card-red">
+                    <h3 id="count-hashes">0</h3>
+                    <p>Hashes</p>
+                </div>
+            </div>
+
+            <!-- Gráfico de Barras Original -->
+            <div class="chart-container">
+                <canvas id="iocChart"></canvas>
+            </div>
+
+            <!-- Centro de Comando de Ameaças: Globo 3D & Telemetria em Tempo Real -->
+            <div class="threat-command-center" id="threatCommandCenter">
+                <!-- Barra Superior de Controle -->
+                <div class="globe-top-control-bar">
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; color: #e6edf3; letter-spacing: 0.5px;">
+                        <i class="fas fa-map-marked-alt" style="font-size: 13px; color: #8b949e;"></i> 2D THREAT MAP
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; color: #8b949e; letter-spacing: 0.5px;">
+                        <span class="blinking-dot" style="background: #8b949e;"></span>
+                        GLOBAL THREAT INTELLIGENCE FEED
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <a href="/threat-intelligence" class="btn-command-action" style="text-decoration: none; color: #c9d1d9; display: inline-flex; align-items: center; gap: 6px;" title="Ver Dossiê Completo de Ameaças e APTs">
+                            <i class="fas fa-brain" style="color: #8b949e;"></i> THREAT INTEL
+                        </a>
+                        <button type="button" class="btn-command-action" id="btn-toggle-traffic" onclick="toggleLiveTrafficPanel()" title="Ver tráfego de rede capturado do Firewall">
+                            <i class="fas fa-satellite-dish" style="color: #8b949e;"></i> LIVE TRAFFIC (<span id="traffic-badge-count">0</span>)
+                        </button>
+                        <button type="button" class="btn-command-action" onclick="toggleCommandCenterFullscreen()" title="Tela Cheia">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Palco Central: Painel Esquerdo + Mapa 2D + Painel Direito -->
+                <div class="command-center-stage">
+                    <!-- Painel Esquerdo: Recent Critical Threats & Defense Posture -->
+                    <div class="command-side-panel">
+                        <div class="top-targets-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div>
+                                <h4>NEW THREATS DETECTED</h4>
+                                <h5>Active Incident Stream</h5>
+                            </div>
+                            <span class="blinking-dot" style="background: #ff1744; box-shadow: 0 0 8px #ff1744;"></span>
+                        </div>
+
+                        <!-- Lista Dinâmica com os 3 Incidentes Críticos Recentes -->
+                        <div class="new-threats-feed" id="newThreatsList">
+                            <div class="threat-compact-card">
+                                <div class="threat-compact-header">
+                                    <span class="threat-compact-ip"><i class="fas fa-crosshairs" style="color: #ff1744;"></i> 62.210.142.161</span>
+                                    <span class="cve-pill" style="font-size: 10px; color: #ff1744; font-weight: 700; letter-spacing: 0.5px;">CRÍTICO</span>
+                                </div>
+                                <div class="threat-compact-title">[FR] 6.1M Reparstores.com (+340 GB)</div>
+                                <div class="threat-compact-meta">
+                                    <span><i class="fas fa-user-secret"></i> ChimeraZ</span>
+                                    <span>🇫🇷 França</span>
+                                </div>
+                                <div class="threat-compact-actions">
+                                    <span style="color: #8b949e; font-size: 11px;"><i class="fas fa-clock"></i> Hoje</span>
+                                    <a href="/search?query=62.210.142.161" class="btn-compact-briefing">
+                                        INVESTIGAR <i class="fas fa-arrow-right"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card de Postura de Defesa Ativa -->
+                        <div class="defense-posture-card" id="defensePostureCard">
+                            <div class="posture-header">
+                                <i class="fas fa-shield-alt" style="color: #8b949e;"></i>
+                                <span>ACTIVE DEFENSE POSTURE</span>
+                            </div>
+                            <div class="posture-metrics-grid">
+                                <div class="metric-item">
+                                    <span class="metric-val" id="posture-iocs">--</span>
+                                    <span class="metric-lbl">IOCs Ativos</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-val" id="posture-countries">--</span>
+                                    <span class="metric-lbl">Países Alvo</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-val" style="color: #3fb950;" id="posture-blocked">--</span>
+                                    <span class="metric-lbl">Bloqueados</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Área Central: Mapa 2D de Ameaças -->
+                    <div class="globe-viewport-container" id="globeViewport">
+                        <div id="worldIocMap" style="width: 100%; height: 100%; background: #040d14;"></div>
+
+                        <!-- Barra Inferior do Globo -->
+                        <div class="globe-bottom-timeline">
+                            <div class="timeline-track">
+                                <div class="timeline-progress"></div>
+                            </div>
+                            <div class="timeline-live-tag">
+                                <span class="blinking-dot"></span> LIVE
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Painel Direito: Cyber Intel Feed, Top Actors & Targeted Ports -->
+                    <div class="command-side-panel right">
+                        <div class="cyber-intel-feed-card">
+                            <div class="top-targets-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div>
+                                    <h4>CYBER INTELLIGENCE FEED</h4>
+                                    <h5>Threat Actor Alerts</h5>
+                                </div>
+                                <span class="cve-pill" style="font-size: 9px; color: #ff5252; font-weight: 700; letter-spacing: 0.5px;">ALERTA</span>
+                            </div>
+                            <div id="cyberIntelFeedList">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </div>
+                        </div>
+
+                        <div class="top-actors-card">
+                            <div class="top-targets-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div>
+                                    <h4>TOP ACTORS</h4>
+                                    <h5>Critical Threat Pressure</h5>
+                                </div>
+                                <a href="/threat-intelligence" style="color: #8b949e; font-size: 11px; text-decoration: none; font-weight: 600;"><i class="fas fa-external-link-alt"></i> REPORT</a>
+                            </div>
+                            <div class="top-actors-list" id="topActorsList">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Top Attack Vectors & Targeted Ports -->
+                        <div class="targeted-ports-card">
+                            <div class="top-targets-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div>
+                                    <h4>ATTACK VECTORS</h4>
+                                    <h5>Targeted Ports & Probes</h5>
+                                </div>
+                                <span class="cve-pill" style="font-size: 10px; color: #8b949e; font-weight: 700; letter-spacing: 0.5px;">PROBES</span>
+                            </div>
+                            <div class="targeted-ports-list" id="targetedPortsList">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel Expansível de Telemetria de Tráfego Real de Rede (Syslog/NetFlow Stream) -->
+                <div class="live-traffic-panel" id="liveTrafficPanel">
+                    <div class="live-traffic-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 12px; font-weight: 600; color: #e6edf3;"><i class="fas fa-satellite-dish" style="color: #8b949e; margin-right: 4px;"></i> LIVE NETWORK TRAFFIC STREAM <span style="font-size: 11px; font-weight: 400; color: #8b949e;">(UDP 1514)</span></span>
+                            <span class="cve-pill" style="font-size: 10px; color: #8b949e; font-weight: 500;">Firewall / NetFlow Interceptor Ativo</span>
+                        </div>
+                        <div class="traffic-stats-group">
+                            <span class="traffic-stat-item">Pacotes Analisados: <strong id="traffic-stat-packets">0</strong></span>
+                            <span class="traffic-stat-item danger">Ameaças Interceptadas: <strong id="traffic-stat-threats">0</strong></span>
+                            <button type="button" class="btn-command-action" onclick="fetchLiveTrafficStream()" style="padding: 2px 8px; font-size: 10px;">
+                                <i class="fas fa-sync"></i> Atualizar
+                            </button>
+                            <a href="/network-traffic" class="btn-command-action" style="text-decoration: none; color: #58a6ff; padding: 2px 8px; font-size: 10px; display: inline-flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-external-link-alt"></i> Ver Página Completa
+                            </a>
+                        </div>
+                    </div>
+                    <div class="traffic-stream-box" id="trafficStreamConsole">
+                        <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Conectando ao coletor de tráfego de rede...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seção de Feeds: Cyber News & Vulnerabilidades Críticas em 2 Colunas -->
+            <div class="dashboard-extra-row">
+                <!-- Painel 1: Notícias Cibernéticas 24h -->
+                <div class="panel-card news-feed-card" style="flex: 1;">
+                    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; min-height: 40px; max-height: 40px; box-sizing: border-box; overflow: hidden;">
+                        <h3 style="margin: 0; font-size: 14.5px;"><i class="fas fa-newspaper" style="color: var(--color-url);"></i> Cyber News (Últimas 24h)</h3>
+                        <button class="btn-tool" onclick="reloadNews()" style="padding: 3px 8px; font-size: 11px;">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                    <div id="news-feed-list" class="feed-list" style="flex: 1; max-height: 380px; overflow-y: auto;">
+                        <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Carregando notícias...</span>
+                    </div>
+                </div>
+
+                <!-- Painel 2: Zero-Days e Vulnerabilidades Críticas -->
+                <div class="panel-card" style="flex: 1;">
+                    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; min-height: 40px; max-height: 40px; box-sizing: border-box; overflow: hidden;">
+                        <h3 style="margin: 0; font-size: 14.5px;"><i class="fas fa-exclamation-triangle" style="color: var(--color-hash);"></i> Zero-Days (CISA KEV)</h3>
+                        <button class="btn-tool" onclick="reloadZeroDays()" style="padding: 3px 8px; font-size: 11px;">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                    <div id="zero-days-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 380px; overflow-y: auto;">
+                        <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Carregando catálogo de vulnerabilidades...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de Inicialização dos Feeds e Mapa Mundi -->
+    <script>
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(str);
+            return div.innerHTML;
+        }
+
+        let liveMapInstance = null;
+        let attackCanvas = null;
+        let activeAttacks = [];
+        let activeMissiles = [];
+        let activeRipples = [];
+        let attackIntervalId = null;
+        let targetCoords = [-15.7801, -47.9292]; // SOC Brasil HQ
+        let targetsPool = [];
+        let markersGroup = null;
+        let resizeCanvas = null;
+
+        function lockWorldLimits() {
+            if (!liveMapInstance) return;
+            liveMapInstance.invalidateSize();
+            // Enquadra o mapa mundial perfeitamente centralizado
+            const worldBounds = L.latLngBounds([[-58, -170], [78, 180]]);
+            liveMapInstance.fitBounds(worldBounds, { animate: false });
+            const minZ = liveMapInstance.getZoom();
+            // Trava o limite mínimo de zoom ao reduzir (o operador pode dar zoom in, mas ao reduzir fica travado nesse limite)
+            liveMapInstance.setMinZoom(minZ);
+            liveMapInstance.setMaxBounds([[-65, -180], [82, 180]]);
+            liveMapInstance.options.maxBoundsViscosity = 1.0;
+            liveMapInstance.setView([20, 10], minZ, { animate: false });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Inicializa componentes do Threat Command Center com Mapa 2D Tático
+            initLiveAttackMap();
+            loadNewsFeed();
+            loadZeroDaysFeed();
+            fetchLiveTrafficStream();
+
+            // Intervalo de atualização de tráfego de rede (a cada 6s)
+            setInterval(() => {
+                const panel = document.getElementById('liveTrafficPanel');
+                if (panel && panel.classList.contains('open')) {
+                    fetchLiveTrafficStream();
+                } else {
+                    fetch('/api/live-traffic?limit=1')
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.success && d.stats) {
+                                const badge = document.getElementById('traffic-badge-count');
+                                if (badge) badge.textContent = d.stats.threats_blocked || 0;
+                            }
+                        }).catch(() => {});
+                }
+            }, 6000);
+
+            // Intervalo de sincronização de ataques ao vivo (a cada 20s)
+            setInterval(fetchLiveAttacks, 20000);
+
+            // Ajuste responsivo de limites quando redimensionar a janela
+            window.addEventListener('resize', () => {
+                if (liveMapInstance) {
+                    lockWorldLimits();
+                    if (typeof resizeCanvas === 'function') resizeCanvas();
+                }
+            });
+        });
+
+        // ==========================================
+        // 2. PAINÉIS DE INTELIGÊNCIA CIBERNÉTICA
+        // ==========================================
+        function renderLatestThreats(threats) {
+            const container = document.getElementById('newThreatsList');
+            if (!container) return;
+            if (!threats || threats.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Nenhuma ameaça recente detectada.</div>';
+                return;
+            }
+
+            container.innerHTML = threats.slice(0, 3).map(th => {
+                const isCrit = th.severity === 'CRÍTICO';
+                const badgeColor = isCrit ? '#ff1744' : '#58a6ff';
+
+                return `
+                    <div class="threat-compact-card">
+                        <div class="threat-compact-header">
+                            <span class="threat-compact-ip"><i class="fas fa-crosshairs" style="color: ${isCrit ? '#ff1744' : '#58a6ff'};"></i> ${escapeHtml(th.ip)}</span>
+                            <span class="cve-pill" style="font-size: 10px; color: ${badgeColor}; font-weight: 700; letter-spacing: 0.5px;">${th.severity}</span>
+                        </div>
+                        <div class="threat-compact-title">${escapeHtml(th.title)}</div>
+                        <div class="threat-compact-meta">
+                            <span><i class="fas fa-user-secret"></i> ${escapeHtml(th.actor || 'Ator Desconhecido')}</span>
+                            <span>${th.flag || '🌐'} ${escapeHtml(th.country || 'Global')}</span>
+                        </div>
+                        <div class="threat-compact-actions">
+                            <span style="color: #8b949e; font-size: 11px;"><i class="fas fa-clock"></i> ${escapeHtml(th.time || 'Hoje')}</span>
+                            <a href="${th.link || '/search?query=' + encodeURIComponent(th.ip)}" class="btn-compact-briefing">
+                                INVESTIGAR <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTargetedPorts(ports) {
+            const container = document.getElementById('targetedPortsList');
+            if (!container) return;
+            if (!ports || ports.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Sem dados de portas.</div>';
+                return;
+            }
+
+            container.innerHTML = ports.slice(0, 4).map(p => {
+                const pct = Math.min(100, Math.max(15, p.pct || 40));
+                return `
+                    <div class="port-probe-item">
+                        <div class="port-probe-meta">
+                            <span class="port-probe-name"><i class="fas fa-network-wired" style="color: #58a6ff; font-size: 10px;"></i> Port ${escapeHtml(p.target)}</span>
+                            <span class="port-probe-count">${p.count} probes</span>
+                        </div>
+                        <div class="port-probe-bar">
+                            <div class="port-probe-fill" style="width: ${pct}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderDefensePosture(posture) {
+            if (!posture) return;
+            const iocsEl = document.getElementById('posture-iocs');
+            const countriesEl = document.getElementById('posture-countries');
+            const blockedEl = document.getElementById('posture-blocked');
+
+            if (iocsEl) iocsEl.textContent = posture.total_iocs || 0;
+            if (countriesEl) countriesEl.textContent = posture.countries_count || 0;
+            if (blockedEl) blockedEl.textContent = posture.threats_blocked || 0;
+        }
+
+        function renderTopActors(actors) {
+            const container = document.getElementById('topActorsList');
+            if (!container) return;
+            if (!actors || actors.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Sem atores mapeados.</div>';
+                return;
+            }
+
+            container.innerHTML = actors.slice(0, 4).map(ac => {
+                const score = ac.pressure || 80;
+                let colorClass = 'high';
+                if (score >= 90) colorClass = 'critical';
+                else if (score < 70) colorClass = 'medium';
+
+                return `
+                    <div class="actor-item">
+                        <div class="actor-info">
+                            <span class="actor-name">
+                                <i class="fas fa-skull" style="font-size: 10px; color: ${score >= 90 ? '#ff1744' : '#58a6ff'}; margin-right: 4px;"></i>
+                                ${escapeHtml(ac.name)}
+                            </span>
+                            <span class="actor-score">${score}/100</span>
+                        </div>
+                        <div class="actor-pressure-bar">
+                            <div class="actor-pressure-fill ${colorClass}" style="width: ${score}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCyberFeeds(feeds) {
+            const container = document.getElementById('cyberIntelFeedList');
+            if (!container) return;
+            if (!feeds || feeds.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Nenhum alerta recente.</div>';
+                return;
+            }
+
+            container.innerHTML = feeds.slice(0, 2).map(feed => `
+                <div class="cyber-intel-item">
+                    <div class="cyber-intel-top">
+                        <span class="cyber-intel-actor"><i class="fas fa-biohazard"></i> ${escapeHtml(feed.actor)}</span>
+                        <span class="cyber-intel-time">${escapeHtml(feed.time || 'Recente')}</span>
+                    </div>
+                    <div class="cyber-intel-desc">
+                        ${escapeHtml(feed.desc || feed.title)}
+                    </div>
+                    <div style="font-size: 11px; color: #8b949e; margin-top: 3px;">
+                        Alvo: <strong style="color: #cbd5e1;">${escapeHtml(feed.country || 'Global')}</strong>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ==========================================
+        // 3. TELEMETRIA DE TRÁFEGO REAL (SYSLOG/NETFLOW)
+        // ==========================================
+        function toggleLiveTrafficPanel() {
+            const panel = document.getElementById('liveTrafficPanel');
+            const btn = document.getElementById('btn-toggle-traffic');
+            if (!panel) return;
+            panel.classList.toggle('open');
+            const isOpen = panel.classList.contains('open');
+            panel.style.display = isOpen ? 'block' : 'none';
+            if (isOpen) {
+                if (btn) btn.classList.add('active');
+                fetchLiveTrafficStream();
+                setTimeout(() => {
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 50);
+            } else {
+                if (btn) btn.classList.remove('active');
+            }
+        }
+
+        function fetchLiveTrafficStream() {
+            fetch('/api/live-traffic?limit=25')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    const stats = data.stats || {};
+                    const totalPackets = stats.total_packets || 0;
+                    const threatsBlocked = stats.threats_blocked || stats.total_threats || 0;
+
+                    const statPacketsEl = document.getElementById('traffic-stat-packets');
+                    const statThreatsEl = document.getElementById('traffic-stat-threats');
+                    const badgeCountEl = document.getElementById('traffic-badge-count');
+
+                    if (statPacketsEl) statPacketsEl.textContent = totalPackets.toLocaleString();
+                    if (statThreatsEl) statThreatsEl.textContent = threatsBlocked.toLocaleString();
+                    if (badgeCountEl) badgeCountEl.textContent = threatsBlocked;
+
+                    const consoleBox = document.getElementById('trafficStreamConsole');
+                    if (!consoleBox) return;
+
+                    const logs = data.logs || data.recent_logs || [];
+                    if (logs.length === 0) {
+                        consoleBox.innerHTML = '<span style="color: var(--text-muted);">Aguardando pacotes nos coletores UDP 1514...</span>';
+                        return;
+                    }
+
+                    consoleBox.innerHTML = logs.map(l => {
+                        const isThreat = l.is_threat == 1;
+                        const badgeColor = isThreat ? '#f85149' : (l.action === 'BLOCKED' ? '#d29922' : '#3fb950');
+                        const badgeText = isThreat ? 'THREAT IOC' : (l.action || 'PASS');
+                        const timeStr = l.created_at ? l.created_at.substring(11, 19) : '--:--:--';
+                        const iocTag = l.matched_ioc ? `<span class="traffic-tag">[IOC: ${escapeHtml(l.matched_ioc)}]</span>` : '';
+
+                        return `
+                            <div class="traffic-log-entry ${isThreat ? 'threat-row' : ''}">
+                                <span class="traffic-time">${timeStr}</span>
+                                <span class="traffic-badge ${isThreat ? 'threat' : 'pass'}" style="color: ${badgeColor}; background: transparent !important; border: none !important; padding: 0 !important;">${badgeText}</span>
+                                <span class="traffic-ip">${escapeHtml(l.src_ip)}:${l.port || 0}</span>
+                                <span class="traffic-arrow">➔</span>
+                                <span class="traffic-ip">${escapeHtml(l.dst_ip)}</span>
+                                <span class="traffic-proto">${escapeHtml(l.protocol)}</span>
+                                ${iocTag}
+                            </div>
+                        `;
+                    }).join('');
+                })
+                .catch(err => console.error('Erro ao buscar telemetria de tráfego:', err));
+        }
+
+        function toggleCommandCenterFullscreen() {
+            const card = document.querySelector('.threat-command-center');
+            if (!card) return;
+            if (!document.fullscreenElement) {
+                card.requestFullscreen()
+                    .then(() => setTimeout(lockWorldLimits, 200))
+                    .catch(err => console.warn('Erro ao entrar em fullscreen:', err));
+            } else {
+                document.exitFullscreen()
+                    .then(() => setTimeout(lockWorldLimits, 200))
+                    .catch(err => console.warn('Erro ao sair de fullscreen:', err));
+            }
+        }
+
+        // ==========================================
+        // 4. MAPA 2D LEAFLET COM TRAJETÓRIAS BALÍSTICAS
+        // ==========================================
+        function lockWorldLimits() {
+            if (!liveMapInstance) return;
+            liveMapInstance.invalidateSize();
+
+            // Delimitação do globo habitado (Américas à esquerda até Ásia/Oceania à direita)
+            // -56° (Sul da América do Sul) a 74° (Norte da Europa / Alasca / Groenlândia)
+            // -170° (Oeste das Américas) a 175° (Nova Zelândia / Leste da Ásia)
+            const worldBounds = L.latLngBounds([[-56, -170], [74, 175]]);
+            const fitZoom = liveMapInstance.getBoundsZoom(worldBounds, false, [12, 12]);
+
+            // Trava o zoom mínimo exatamente no enquadramento do mapa completo na coluna central
+            liveMapInstance.setMinZoom(fitZoom);
+            liveMapInstance.setView([18, 12], fitZoom);
+
+            // Limites rígidos de arraste para não perder o mapa no vácuo
+            liveMapInstance.setMaxBounds([[-65, -180], [82, 180]]);
+            if (typeof resizeCanvas === 'function') resizeCanvas();
+        }
+
+        function initLiveAttackMap() {
+            const mapContainer = document.getElementById('worldIocMap');
+            if (!mapContainer) return;
+
+            liveMapInstance = L.map('worldIocMap', {
+                center: [18, 12],
+                zoom: 1.6,
+                minZoom: 1.0,
+                maxZoom: 6,
+                zoomSnap: 0.05,
+                worldCopyJump: false,
+                maxBounds: [[-65, -180], [82, 180]],
+                maxBoundsViscosity: 1.0,
+                zoomControl: false,
+                attributionControl: false
+            });
+
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 16,
+                className: 'esri-cyber-tiles',
+                attribution: '&copy; Esri'
+            }).addTo(liveMapInstance);
+
+            markersGroup = L.layerGroup().addTo(liveMapInstance);
+
+            // Canvas de Animação das Trajetórias Balísticas
+            attackCanvas = document.createElement('canvas');
+            attackCanvas.style.position = 'absolute';
+            attackCanvas.style.left = '0';
+            attackCanvas.style.top = '0';
+            attackCanvas.style.pointerEvents = 'none';
+            attackCanvas.style.zIndex = '450';
+            mapContainer.appendChild(attackCanvas);
+
+            resizeCanvas = function() {
+                if (!liveMapInstance || !attackCanvas) return;
+                const size = liveMapInstance.getSize();
+                attackCanvas.width = size.x;
+                attackCanvas.height = size.y;
+            };
+
+            resizeCanvas();
+            liveMapInstance.on('resize move zoom', resizeCanvas);
+
+            // Ajuste inicial de centralização e travamento do enquadramento
+            setTimeout(lockWorldLimits, 80);
+            window.addEventListener('resize', () => {
+                if (liveMapInstance) setTimeout(lockWorldLimits, 100);
+            });
+
+            // Inicia loop de renderização do Canvas
+            requestAnimationFrame(renderAttackCanvas);
+
+            // Carrega dados de ataques
+            fetchLiveAttacks();
+        }
+
+        function refreshLiveAttacks() {
+            const icon = document.getElementById('live-sync-icon');
+            if (icon) icon.className = 'fas fa-spinner fa-spin';
+            fetchLiveAttacks().finally(() => {
+                if (icon) icon.className = 'fas fa-sync';
+            });
+        }
+
+        function fetchLiveAttacks() {
+            return fetch('/api/live-attacks')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+
+                    activeAttacks = data.attacks || [];
+                    if (data.target && data.target.lat && data.target.lon) {
+                        targetCoords = [data.target.lat, data.target.lon];
+                    }
+
+                    // Atualiza contadores e alvo dinâmico
+                    const countEl = document.getElementById('live-threat-count');
+                    const countryEl = document.getElementById('live-country-count');
+                    const targetEl = document.getElementById('live-target-name');
+                    if (countEl) countEl.textContent = data.stats.total_threat_ips;
+                    if (countryEl) countryEl.textContent = data.stats.active_countries;
+                    if (targetEl && data.target) {
+                        targetEl.textContent = `${data.target.name} ${data.target.flag || ''}`;
+                    }
+
+                    // Atualiza Painéis do Command Center
+                    if (data.latest_threats) renderLatestThreats(data.latest_threats);
+                    if (data.top_actors) renderTopActors(data.top_actors);
+                    if (data.targeted_ports) renderTargetedPorts(data.targeted_ports);
+                    if (data.cyber_feeds) renderCyberFeeds(data.cyber_feeds);
+                    if (data.defense_posture) renderDefensePosture(data.defense_posture);
+
+                    // Monta a rede de alvos: SOC Primário do Usuário + Hubs Globais
+                    targetsPool = [
+                        {
+                            name: data.target.name,
+                            city: data.target.city,
+                            country: data.target.country,
+                            flag: data.target.flag || '🇧🇷',
+                            coords: targetCoords,
+                            isPrimary: true
+                        },
+                        {
+                            name: "Datacenter US-East",
+                            city: "Virginia",
+                            country: "Estados Unidos",
+                            flag: "🇺🇸",
+                            coords: [38.9072, -77.0369],
+                            isPrimary: false
+                        },
+                        {
+                            name: "Hub Europa Central",
+                            city: "Frankfurt",
+                            country: "Alemanha",
+                            flag: "🇩🇪",
+                            coords: [50.1109, 8.6821],
+                            isPrimary: false
+                        },
+                        {
+                            name: "Gateway Londres",
+                            city: "Londres",
+                            country: "Reino Unido",
+                            flag: "🇬🇧",
+                            coords: [51.5074, -0.1278],
+                            isPrimary: false
+                        },
+                        {
+                            name: "APAC Node Tóquio",
+                            city: "Tóquio",
+                            country: "Japão",
+                            flag: "🇯🇵",
+                            coords: [35.6762, 139.6503],
+                            isPrimary: false
+                        },
+                        {
+                            name: "Cloud Hub Cingapura",
+                            city: "Cingapura",
+                            country: "Cingapura",
+                            flag: "🇸🇬",
+                            coords: [1.3521, 103.8198],
+                            isPrimary: false
+                        },
+                        {
+                            name: "Infraestrutura Sydney",
+                            city: "Sydney",
+                            country: "Austrália",
+                            flag: "🇦🇺",
+                            coords: [-33.8688, 151.2093],
+                            isPrimary: false
+                        }
+                    ];
+
+                    // Limpa marcadores anteriores do Leaflet 2D
+                    if (markersGroup) markersGroup.clearLayers();
+
+                    // Plota Alvos no Mapa 2D
+                    targetsPool.forEach(tg => {
+                        const iconHtml = tg.isPrimary 
+                            ? '<div class="target-hq-icon"><div class="target-ring"></div><div class="target-dot"></div></div>'
+                            : '<div class="target-hq-icon" style="opacity: 0.85;"><div class="target-ring" style="border-color: #29b6f6; animation-duration: 2.6s;"></div><div class="target-dot" style="background-color: #29b6f6; box-shadow: 0 0 6px #29b6f6;"></div></div>';
+
+                        const targetIcon = L.divIcon({
+                            className: tg.isPrimary ? 'target-marker-wrapper' : 'target-hub-wrapper',
+                            html: iconHtml,
+                            iconSize: tg.isPrimary ? [18, 18] : [14, 14],
+                            iconAnchor: tg.isPrimary ? [9, 9] : [7, 7]
+                        });
+
+                        const tMarker = L.marker(tg.coords, { icon: targetIcon });
+                        const statusBadge = tg.isPrimary
+                            ? '<span style="color: #58a6ff; font-weight: 600;">● Seu SOC Central (QG Principal)</span>'
+                            : '<span style="color: #388bfd; font-weight: 600;">● Hub Global Monitorado</span>';
+
+                        tMarker.bindPopup(`
+                            <div style="color: #000; font-size: 12px; font-family: Roboto, sans-serif;">
+                                <strong style="color: #00838f;">🛡️ ${escapeHtml(tg.name)}</strong><br>
+                                ${escapeHtml(tg.city)}, ${escapeHtml(tg.country)} ${tg.flag}<br>
+                                ${statusBadge}
+                            </div>
+                        `);
+                        markersGroup.addLayer(tMarker);
+                    });
+
+                    // Plota nós atacantes da base com radar pulsante
+                    activeAttacks.forEach(att => {
+                        const attIcon = L.divIcon({
+                            className: 'attacker-marker-wrapper',
+                            html: '<div class="radar-pulse-icon"><div class="radar-ring"></div><div class="radar-dot"></div></div>',
+                            iconSize: [14, 14],
+                            iconAnchor: [7, 7]
+                        });
+
+                        const marker = L.marker([att.lat, att.lon], { icon: attIcon });
+                        marker.bindPopup(`
+                            <div style="color: #000; font-size: 12px; font-family: Roboto, sans-serif; min-width: 180px;">
+                                <strong>${att.flag} ${escapeHtml(att.country)}</strong> (${escapeHtml(att.city || 'Desconhecido')})<br>
+                                <hr style="margin: 4px 0; border: 0; border-top: 1px solid #eee;">
+                                IP: <b style="color: #c62828;">${escapeHtml(att.ip)}</b><br>
+                                Ameaça: <b>${escapeHtml(att.threat_type)}</b><br>
+                                Protocolo: <code>${escapeHtml(att.protocol)}/${att.port}</code><br>
+                                ISP: <small>${escapeHtml(att.isp || 'N/A')}</small><br>
+                                <a href="/search?query=${encodeURIComponent(att.ip)}" style="display: block; margin-top: 8px; background: #0d1117; color: #58a6ff; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: bold; text-align: center; border: 1px solid #30363d;">
+                                    Investigar IOC no Cortex 🔍
+                                </a>
+                            </div>
+                        `);
+                        markersGroup.addLayer(marker);
+                    });
+
+                    // Inicializa fluxo contínuo de projéteis simultâneos (idêntico ao Globo 3D)
+                    init2dTrajectories();
+                })
+                .catch(e => console.error('Erro ao carregar ataques:', e));
+        }
+
+        function init2dTrajectories() {
+            activeMissiles = [];
+            if (!activeAttacks || activeAttacks.length === 0 || !targetsPool || targetsPool.length === 0) return;
+
+            const primaryTarget = targetsPool.find(t => t.isPrimary) || targetsPool[0];
+
+            activeAttacks.forEach((att, idx) => {
+                const isCrit = att.severity === 'Crítico';
+                const color = isCrit ? '#ff1744' : '#388bfd';
+
+                // 70% mira no SOC principal, 30% nos hubs globais
+                let chosenTarget = primaryTarget;
+                if (Math.random() < 0.30 && targetsPool.length > 1) {
+                    const others = targetsPool.filter(t => !t.isPrimary);
+                    chosenTarget = others[Math.floor(Math.random() * others.length)] || primaryTarget;
+                }
+
+                activeMissiles.push({
+                    from: [att.lat, att.lon],
+                    to: chosenTarget.coords,
+                    progress: (idx / activeAttacks.length), // Espaçamento sincronizado e contínuo
+                    speed: 0.007 + Math.random() * 0.005,
+                    color: color,
+                    threat: att,
+                    destination: chosenTarget
+                });
+            });
+        }
+
+        function renderAttackCanvas() {
+            if (attackCanvas && attackCanvas.getContext && liveMapInstance) {
+                const ctx = attackCanvas.getContext('2d');
+                ctx.clearRect(0, 0, attackCanvas.width, attackCanvas.height);
+
+                // 1. Renderiza Projéteis e Arcos Curvos Contínuos (idêntico ao 3D)
+                for (let i = 0; i < activeMissiles.length; i++) {
+                    const m = activeMissiles[i];
+                    m.progress += m.speed;
+
+                    const p0 = liveMapInstance.latLngToContainerPoint(m.from);
+                    const p1 = liveMapInstance.latLngToContainerPoint(m.to);
+
+                    // Arco Curvado Balístico
+                    const dx = p1.x - p0.x;
+                    const dy = p1.y - p0.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const midX = (p0.x + p1.x) / 2;
+                    const midY = (p0.y + p1.y) / 2 - Math.min(130, dist * 0.25);
+
+                    // Posição atual B(t)
+                    const t = Math.min(1, m.progress);
+                    const curX = (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * midX + t * t * p1.x;
+                    const curY = (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * midY + t * t * p1.y;
+
+                    // Posição da cauda B(t - dt)
+                    const tTail = Math.max(0, t - 0.18);
+                    const tailX = (1 - tTail) * (1 - tTail) * p0.x + 2 * (1 - tTail) * tTail * midX + tTail * tTail * p1.x;
+                    const tailY = (1 - tTail) * (1 - tTail) * p0.y + 2 * (1 - tTail) * tTail * midY + tTail * tTail * p1.y;
+
+                    // Trajetória balística contínua de fundo (arco tracejado estilo radar)
+                    ctx.save();
+                    ctx.setLineDash([3, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(p0.x, p0.y);
+                    ctx.quadraticCurveTo(midX, midY, p1.x, p1.y);
+                    ctx.strokeStyle = m.color === '#ff1744' ? 'rgba(255, 23, 68, 0.35)' : 'rgba(0, 229, 255, 0.35)';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // Feixe do pacote com gradiente luminoso
+                    const grad = ctx.createLinearGradient(tailX, tailY, curX, curY);
+                    grad.addColorStop(0, 'rgba(0, 229, 255, 0)');
+                    grad.addColorStop(1, m.color);
+
+                    ctx.beginPath();
+                    ctx.moveTo(tailX, tailY);
+                    ctx.lineTo(curX, curY);
+                    ctx.strokeStyle = grad;
+                    ctx.lineWidth = 2.4;
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+
+                    // Ponto luminoso na cabeça do pacote
+                    ctx.beginPath();
+                    ctx.arc(curX, curY, 3.2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowColor = m.color;
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    // Impacto no Alvo e reinício contínuo do ciclo
+                    if (m.progress >= 1) {
+                        m.progress = 0;
+                        m.speed = 0.007 + Math.random() * 0.005;
+
+                        activeRipples.push({
+                            x: p1.x,
+                            y: p1.y,
+                            radius: 3,
+                            maxRadius: 26,
+                            alpha: 1
+                        });
+
+                        // Atualiza Telemetria em tempo real
+                        const ticker = document.getElementById('tickerContent');
+                        if (ticker && m.threat && m.destination) {
+                            const now = new Date().toLocaleTimeString();
+                            const th = m.threat;
+                            const dest = m.destination;
+                            if (dest.isPrimary) {
+                                ticker.innerHTML = `[${now}] <span style="color:#ff5252;font-weight:700;">ALERTA SOC:</span> ${th.flag} <b>${escapeHtml(th.ip)}</b> ➔ BLOQUEADO no <b>${escapeHtml(dest.name)}</b> [${escapeHtml(th.threat_type)}]`;
+                            } else {
+                                ticker.innerHTML = `[${now}] <span style="color:#58a6ff;font-weight:600;">INTERCEPTADO:</span> ${th.flag} <b>${escapeHtml(th.ip)}</b> ➔ ${dest.flag} <b>${escapeHtml(dest.name)}</b> [${escapeHtml(th.threat_type)}]`;
+                            }
+                        }
+                    }
+                }
+
+                // 2. Ondas de Impacto no Alvo
+                for (let j = activeRipples.length - 1; j >= 0; j--) {
+                    const r = activeRipples[j];
+                    r.radius += 1.3;
+                    r.alpha -= 0.045;
+
+                    if (r.alpha <= 0) {
+                        activeRipples.splice(j, 1);
+                    } else {
+                        ctx.beginPath();
+                        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                        ctx.strokeStyle = `rgba(56, 139, 253, ${r.alpha})`;
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            requestAnimationFrame(renderAttackCanvas);
+        }
+
+        function loadNewsFeed() {
+            const list = document.getElementById('news-feed-list');
+            fetch('/api/feed/news')
+                .then(r => r.json())
+                .then(items => {
+                    if (items && items.length > 0) {
+                        list.innerHTML = items.map(item => `
+                            <a href="${encodeURI(item.link || '#')}" target="_blank" class="feed-item" rel="noopener noreferrer">
+                                <div class="feed-item-title">${escapeHtml(item.title)}</div>
+                                <div class="feed-item-meta">
+                                    <span><i class="fas fa-tag"></i> ${escapeHtml(item.source)}</span>
+                                    <span>${item.pub_date ? escapeHtml(item.pub_date.substring(0, 16)) : 'Recente'}</span>
+                                </div>
+                            </a>
+                        `).join('');
+                    } else {
+                        list.innerHTML = `<span style="color: var(--text-muted);">Nenhuma notícia encontrada.</span>`;
+                    }
+                })
+                .catch(() => {
+                    list.innerHTML = `<span style="color: var(--text-muted);">Feed indisponível no momento.</span>`;
+                });
+        }
+
+        function reloadNews() {
+            document.getElementById('news-feed-list').innerHTML = `<span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Atualizando...</span>`;
+            loadNewsFeed();
+        }
+
+        function loadZeroDaysFeed() {
+            const list = document.getElementById('zero-days-list');
+            fetch('/api/feed/zero-days')
+                .then(r => r.json())
+                .then(items => {
+                    if (items && items.length > 0) {
+                        list.innerHTML = items.map(cve => `
+                            <div class="feed-item" style="cursor: default;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <span class="cve-pill">${escapeHtml(cve.cve_id)}</span>
+                                    <small style="color: var(--text-muted); font-size: 11px;">${escapeHtml(cve.date_added)}</small>
+                                </div>
+                                <div style="color: #fff; font-size: 13px; font-weight: 500; margin-bottom: 6px;">
+                                    ${escapeHtml(cve.vendor)} - ${escapeHtml(cve.product)}
+                                </div>
+                                <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">
+                                    ${escapeHtml(cve.name)}
+                                </div>
+                                <div style="font-size: 11px; color: #ffab40;">
+                                    <i class="fas fa-shield-alt"></i> Ação: ${escapeHtml(cve.action)}
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        list.innerHTML = `<span style="color: var(--text-muted);">Nenhuma vulnerabilidade crítica reportada recentemente.</span>`;
+                    }
+                })
+                .catch(() => {
+                    list.innerHTML = `<span style="color: var(--text-muted);">Catálogo CISA KEV indisponível no momento.</span>`;
+                });
+        }
+
+        function reloadZeroDays() {
+            document.getElementById('zero-days-list').innerHTML = `<span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Atualizando catálogo CISA KEV...</span>`;
+            loadZeroDaysFeed();
+        }
+    </script>
+</body>
+</html>

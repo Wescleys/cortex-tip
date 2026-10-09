@@ -1,0 +1,70 @@
+services:
+  # ==============================================================================
+  # 1. Banco de Dados MariaDB 11.4 LTS
+  # ==============================================================================
+  cortex-mariadb:
+    image: mariadb:11.4
+    container_name: cortex-mariadb
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-cortex_root_secret_2026}
+      MARIADB_DATABASE: ${DB_NAME:-cortex_system}
+      MARIADB_USER: ${DB_USER:-cortex_user}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-cortex_secret_2026}
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - cortex_mariadb_data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=250
+      - --wait_timeout=28800
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - cortex-network
+
+  # ==============================================================================
+  # 2. Aplicação Cortex TIP 
+  # ==============================================================================
+  cortex-app:
+    image: wescleysilva/cortex-tip:latest
+    container_name: cortex-app
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+      - "${SYSLOG_PORT:-1514}:1514/udp"
+    environment:
+      - DB_HOST=cortex-mariadb
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-cortex_system}
+      - DB_USER=${DB_USER:-cortex_user}
+      - DB_PASSWORD=${DB_PASSWORD:-cortex_secret_2026}
+      - TZ=${TZ:-America/Sao_Paulo}
+    depends_on:
+      cortex-mariadb:
+        condition: service_healthy
+    volumes:
+      - cortex_logs:/app/logs
+      - cortex_cache:/app/cache
+    networks:
+      - cortex-network
+
+volumes:
+  cortex_mariadb_data:
+    name: cortex_mariadb_data
+  cortex_logs:
+    name: cortex_logs
+  cortex_cache:
+    name: cortex_cache
+
+networks:
+  cortex-network:
+    name: cortex-network
+    driver: bridge

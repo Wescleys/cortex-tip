@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações - Cortex TIP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo" id="sidebar-logo-img"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                <li class="menu-label">Operações SOC</li>
+                <li><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+
+                <li class="menu-label">Administração</li>
+                <li><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li class="active"><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+
+                <li class="menu-label">Conta</li>
+                <li><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <div class="top-bar">
+                <div>
+                    <h2>Configurações Globais da Plataforma</h2>
+                    <p style="color: var(--text-muted); margin: 5px 0 0; font-size: 14px;">
+                        Gerencie logotipo, integrações com MISP, IA Local/Nuvem e APIs de Threat Intelligence.
+                    </p>
+                </div>
+
+                <div class="user-menu-area">
+                    {% if current_user %}
+                    <a href="/profile" class="user-badge" style="text-decoration: none; cursor: pointer;" title="Meu Perfil">
+                        <i class="fas fa-user-shield"></i>
+                        <span>{{ current_user.first_name }} {{ current_user.last_name }}</span>
+                        <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </a>
+                    <a href="/logout" class="btn-auth-link btn-danger-hover"><i class="fas fa-sign-out-alt"></i> Sair</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ 'sev-Baixa' if category == 'success' else ('error' if category == 'error' else 'warning') }}" style="margin-bottom: 20px;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Feedback de Testes de Conexão -->
+            <div id="test-feedback" style="display: none; margin-bottom: 20px;" class="alert-box"></div>
+
+            <div class="settings-nav">
+                <div class="settings-nav-item active" onclick="switchTab('tab-misp')">
+                    <i class="fas fa-database"></i> Conexão MISP
+                </div>
+                <div class="settings-nav-item" onclick="switchTab('tab-ai')">
+                    <i class="fas fa-brain"></i> Inteligência Artificial (Ollama / Cloud)
+                </div>
+                <div class="settings-nav-item" onclick="switchTab('tab-intel')">
+                    <i class="fas fa-shield-virus"></i> VirusTotal & AbuseIPDB
+                </div>
+                <div class="settings-nav-item" onclick="switchTab('tab-branding')">
+                    <i class="fas fa-palette"></i> Identidade Visual & Logo
+                </div>
+            </div>
+
+            <!-- FORMULÁRIO PRINCIPAL (MISP, IA, INTEL) -->
+            <form action="/settings/save" method="POST" class="auth-form" id="main-settings-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- ABA 1: MISP -->
+                <div id="tab-misp" class="settings-section active">
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-server" style="color: var(--color-ip);"></i> Configuração de Sincronização e Ingestão MISP</h3>
+                        </div>
+
+                        <div class="form-group" style="background: #161b22; padding: 15px; border-radius: 6px; border: 1px solid #30363d; margin-bottom: 25px;">
+                            <label style="color: #fff; font-size: 14px; margin-bottom: 8px;">
+                                <i class="fas fa-sync-alt"></i> Método de Sincronização (Download de IOCs)
+                            </label>
+                            <p style="color: var(--text-muted); font-size: 13px; margin-top: 0;">
+                                Escolha como o Cortex carrega o cache massivo de IOCs do MISP periodicamente:
+                            </p>
+                            <div style="display: flex; gap: 30px; margin-top: 10px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fff;">
+                                    <input type="radio" name="misp_read_mode" value="database" {{ 'checked' if settings.misp_read_mode == 'database' else '' }}>
+                                    <strong>Banco de Dados MySQL Direto</strong> (Ultra rápido para bases com 1M+ de IOCs)
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fff;">
+                                    <input type="radio" name="misp_read_mode" value="api" {{ 'checked' if settings.misp_read_mode == 'api' else '' }}>
+                                    <strong>API REST do MISP</strong> (Padrão via PyMISP)
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Configuração API REST (Usada para Ingestão e/ou Leitura) -->
+                        <h4 style="color: var(--color-domain); margin-bottom: 12px;">
+                            <i class="fas fa-plug"></i> Conexão Oficial API REST (PyMISP)
+                        </h4>
+                        <p style="color: var(--text-muted); font-size: 13px; margin-top: 0; margin-bottom: 15px;">
+                            Obrigatória para operações de escrita de IOCs e sincronização no modo API.
+                        </p>
+
+                        <div class="form-group">
+                            <label>URL Base da Instância MISP</label>
+                            <input type="text" name="misp_url" id="misp_url" value="{{ settings.misp_url }}" placeholder="https://misp.suaempresa.com.br ou https://10.0.x.x:5000">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Chave de Autenticação da API (Auth Key)</label>
+                            <input type="password" name="misp_api_key" id="misp_api_key" value="{{ settings.misp_api_key }}" placeholder="Chave de 40 caracteres do seu usuário de automação no MISP">
+                        </div>
+
+                        <div class="form-group checkbox-group" style="margin-bottom: 20px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" name="misp_verify_ssl" id="misp_verify_ssl" value="true" {{ 'checked' if settings.misp_verify_ssl == 'true' else '' }}>
+                                <span>Verificar Certificado SSL (Desmarque se o MISP utilizar certificado autoassinado)</span>
+                            </label>
+                        </div>
+
+                        <button type="button" onclick="testMispApi()" class="btn-tool" style="margin-bottom: 30px;">
+                            <i class="fas fa-vial"></i> Testar Conectividade via API REST (PyMISP)
+                        </button>
+
+                        <hr style="border: 0; border-top: 1px solid #30363d; margin: 30px 0;">
+
+                        <!-- Configuração MySQL Direto -->
+                        <h4 style="color: var(--color-url); margin-bottom: 12px;">
+                            <i class="fas fa-database"></i> Conexão Direta ao Banco MySQL do MISP
+                        </h4>
+                        <p style="color: var(--text-muted); font-size: 13px; margin-top: 0; margin-bottom: 15px;">
+                            Permite leitura instantânea em massa de centenas de milhares de atributos sem onerar o servidor web do MISP.
+                        </p>
+
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
+                            <div class="form-group">
+                                <label>Host do MySQL</label>
+                                <input type="text" name="misp_mysql_host" id="misp_mysql_host" value="{{ settings.misp_mysql_host }}" placeholder="ex: 10.0.206.37 ou localhost">
+                            </div>
+                            <div class="form-group">
+                                <label>Nome do Banco (Database)</label>
+                                <input type="text" name="misp_mysql_database" id="misp_mysql_database" value="{{ settings.misp_mysql_database }}" placeholder="misp">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div class="form-group">
+                                <label>Usuário MySQL (somente leitura recomendado)</label>
+                                <input type="text" name="misp_mysql_user" id="misp_mysql_user" value="{{ settings.misp_mysql_user }}" placeholder="cortex_reader">
+                            </div>
+                            <div class="form-group">
+                                <label>Senha MySQL</label>
+                                <input type="password" name="misp_mysql_password" id="misp_mysql_password" value="{{ settings.misp_mysql_password }}" placeholder="Senha do banco MySQL">
+                            </div>
+                        </div>
+
+                        <button type="button" onclick="testMispMysql()" class="btn-tool" style="margin-top: 10px;">
+                            <i class="fas fa-vial"></i> Testar Conexão Direta com Banco MySQL
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ABA 2: INTELIGÊNCIA ARTIFICIAL (OLLAMA / CLOUD) -->
+                <div id="tab-ai" class="settings-section">
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-brain" style="color: #ce93d8;"></i> Configuração do Analista SOC com IA</h3>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px;">
+                            <label style="color: #fff; font-size: 14px;">Provedor de Inteligência Ativo</label>
+                            <select name="ai_provider" id="ai_provider" onchange="toggleAiFields()" style="max-width: 380px;">
+                                <option value="ollama" {{ 'selected' if settings.ai_provider == 'ollama' else '' }}>Servidor Local Ollama (DeepSeek-R1 / Qwen / Gemma)</option>
+                                <option value="gemini" {{ 'selected' if settings.ai_provider == 'gemini' else '' }}>Google Gemini Cloud</option>
+                                <option value="openai" {{ 'selected' if settings.ai_provider == 'openai' else '' }}>OpenAI (ChatGPT / GPT-4o)</option>
+                                <option value="anthropic" {{ 'selected' if settings.ai_provider == 'anthropic' else '' }}>Anthropic (Claude 3.5)</option>
+                            </select>
+                        </div>
+
+                        <!-- Campos Ollama Local com Auto-Scan Inteligente -->
+                        <div id="ai-ollama-box" style="background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                                <h4 style="margin: 0; color: #ce93d8;"><i class="fas fa-microchip"></i> Servidor Ollama Local</h4>
+                                <span id="ollama-status-badge" class="badge" style="border: 1px solid #30363d; padding: 4px 10px; font-size: 12px; color: var(--text-muted); border-radius: 12px;">
+                                    <i class="fas fa-circle" style="font-size: 9px; color: #8b949e;"></i> Aguardando scan
+                                </span>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 2fr 2fr; gap: 15px;">
+                                <div class="form-group">
+                                    <label>URL do Servidor Ollama</label>
+                                    <input type="text" name="ollama_url" id="ollama_url" value="{{ settings.ollama_url }}" placeholder="http://localhost:11434 ou http://192.168.x.x:11434" onchange="detectOllamaModels(false)">
+                                </div>
+                                <div class="form-group">
+                                    <label>Modelo de IA Selecionado</label>
+                                    <div style="display: flex; gap: 8px;">
+                                        <select name="ollama_model" id="ollama_model_select" style="flex: 1;">
+                                            {% if settings.ollama_model %}
+                                            <option value="{{ settings.ollama_model }}" selected>{{ settings.ollama_model }} (Configurado)</option>
+                                            {% else %}
+                                            <option value="">Clique em 'Escanear IAs' para listar</option>
+                                            {% endif %}
+                                        </select>
+                                        <button type="button" id="btn-scan-ollama" onclick="detectOllamaModels(true)" class="btn-tool" title="Escanear e listar todos os modelos instalados no servidor" style="background: rgba(206, 147, 216, 0.15); border-color: #ce93d8; color: #ce93d8; white-space: nowrap;">
+                                            <i class="fas fa-search" id="scan-icon"></i> Escanear IAs
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 12px; margin-top: 15px; flex-wrap: wrap;">
+                                <button type="button" onclick="testOllamaConn()" class="btn-tool" style="display: inline-flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-vial"></i> Testar Conectividade com Ollama
+                                </button>
+                                <span style="font-size: 12.5px; color: var(--text-muted); align-self: center;">
+                                    O scan busca em tempo real todos os LLMs baixados no seu Ollama para você selecionar com 1 clique.
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Campos Cloud IAs -->
+                        <div id="ai-cloud-box" style="display: none; background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d;">
+                            <h4 style="margin-top: 0; color: #ce93d8;"><i class="fas fa-cloud"></i> Chaves de API para IAs em Nuvem</h4>
+                            <div class="form-group">
+                                <label>Google Gemini API Key</label>
+                                <input type="password" name="gemini_api_key" value="{{ settings.gemini_api_key }}" placeholder="AIzaSy...">
+                            </div>
+                            <div class="form-group">
+                                <label>OpenAI API Key (ChatGPT)</label>
+                                <input type="password" name="openai_api_key" value="{{ settings.openai_api_key }}" placeholder="sk-...">
+                            </div>
+                            <div class="form-group">
+                                <label>Anthropic Claude API Key</label>
+                                <input type="password" name="anthropic_api_key" value="{{ settings.anthropic_api_key }}" placeholder="sk-ant-...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA 3: INTEL -->
+                <div id="tab-intel" class="settings-section">
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-shield-virus" style="color: var(--color-hash);"></i> Integração com Fontes de Inteligência Externa</h3>
+                        </div>
+                        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">
+                            Insira suas chaves de API (gratuitas ou pagas) para permitir enriquecimento sob demanda de IPs, Domínios, URLs e Hashes.
+                        </p>
+
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label><i class="fas fa-virus" style="color: #5c6bc0;"></i> VirusTotal API Key (v3)</label>
+                            <input type="password" name="virustotal_api_key" value="{{ settings.virustotal_api_key }}" placeholder="Cole sua chave da API do VirusTotal">
+                            <small style="color: var(--text-muted); display: block; margin-top: 5px;">Suporta análise de IPs, Domínios, URLs e Hashes com cache local para economizar requisições.</small>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label><i class="fas fa-ban" style="color: #ff9800;"></i> AbuseIPDB API Key (v2)</label>
+                            <input type="password" name="abuseipdb_api_key" value="{{ settings.abuseipdb_api_key }}" placeholder="Cole sua chave da API do AbuseIPDB">
+                            <small style="color: var(--text-muted); display: block; margin-top: 5px;">Pontuação de reputação de abuso e denúncias para endereços IP.</small>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label><i class="fas fa-shield-virus" style="color: #ab47bc;"></i> AlienVault OTX API Key (Opcional)</label>
+                            <input type="password" name="otx_api_key" value="{{ settings.otx_api_key }}" placeholder="Cole sua chave da API do AlienVault OTX (opcional)">
+                            <small style="color: var(--text-muted); display: block; margin-top: 5px;">O Cortex já consulta o AlienVault OTX gratuitamente. Adicionar sua chave amplia seus limites de consulta de Threat Pulses.</small>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 20px; background: #161b22; padding: 15px; border-radius: 6px; border: 1px solid #30363d;">
+                            <label><i class="fas fa-map-marker-alt" style="color: var(--color-ip);"></i> Serviço de Geolocalização & Mapa de IPs</label>
+                            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-top: 8px;">
+                                <div>
+                                    <label style="font-size: 12px; color: var(--text-muted);">Provedor GeoIP</label>
+                                    <select name="geoip_provider" id="geoip_provider">
+                                        <option value="ip-api" {{ 'selected' if settings.geoip_provider == 'ip-api' else '' }}>ip-api.com (Padrão / Livre)</option>
+                                        <option value="ipinfo" {{ 'selected' if settings.geoip_provider == 'ipinfo' else '' }}>IPInfo.io (Requer Token)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 12px; color: var(--text-muted);">Chave de API / Token (Opcional para ip-api)</label>
+                                    <input type="password" name="geoip_api_key" value="{{ settings.geoip_api_key }}" placeholder="Token do IPInfo.io ou Pro Key do ip-api">
+                                </div>
+                            </div>
+                            <small style="color: var(--text-muted); display: block; margin-top: 8px;">Usado para resolver País, Cidade, Bandeira, ASN e renderizar os mini-mapas interativos de IPs investigados.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="save-settings-bar" style="margin-top: 25px;">
+                    <button type="submit" class="btn-primary-block" style="max-width: 280px; padding: 12px 20px;">
+                        <i class="fas fa-save"></i> Salvar Todas as Configurações
+                    </button>
+                </div>
+            </form>
+
+            <!-- ABA 4: IDENTIDADE VISUAL & LOGOTIPO (FORMULÁRIOS SEPARADOS PARA UPLOAD/RESET) -->
+            <div id="tab-branding" class="settings-section">
+                <div class="panel-card">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-palette" style="color: #58a6ff;"></i> Personalização de Identidade Visual e Logotipo</h3>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 13.5px; margin-bottom: 25px;">
+                        Altere o logotipo exibido no menu lateral e nas páginas de login e navegação para a identidade visual da sua organização de segurança ou SOC.
+                    </p>
+
+                    <!-- Preview ao Vivo da Logo -->
+                    <div style="background: #161b22; padding: 25px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 30px; display: flex; align-items: center; gap: 30px; flex-wrap: wrap;">
+                        <div style="background: #0d1117; padding: 20px; border-radius: 8px; border: 2px dashed #30363d; min-width: 220px; min-height: 90px; display: flex; align-items: center; justify-content: center;">
+                            <img id="logo-live-preview" src="{{ platform_logo }}" alt="Preview Logo" style="max-height: 60px; max-width: 200px; object-fit: contain;">
+                        </div>
+                        <div style="flex: 1; min-width: 250px;">
+                            <h4 style="margin: 0 0 6px 0; color: #fff;">Logotipo Atual em Operação</h4>
+                            <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 12px 0;">
+                                Formatos aceitos: <strong>PNG, JPG, SVG ou WebP</strong> com fundo transparente recomendado (altura recomendada: 50px a 80px).
+                            </p>
+                            <form action="/settings/logo/reset" method="POST" style="display: inline-block;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn-tool" style="color: #ffab40; border-color: #ffab40;" onclick="return confirm('Deseja realmente restaurar o logotipo oficial original da Cortex?');">
+                                    <i class="fas fa-undo"></i> Restaurar Logotipo Padrão
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Formulário de Upload do Novo Logotipo -->
+                    <form action="/settings/logo/upload" method="POST" enctype="multipart/form-data" style="background: #161b22; padding: 25px; border-radius: 8px; border: 1px solid #30363d;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <h4 style="margin-top: 0; color: #58a6ff; margin-bottom: 15px;">
+                            <i class="fas fa-cloud-upload-alt"></i> Enviar Nova Imagem de Logotipo
+                        </h4>
+
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label>Selecione um arquivo de imagem do seu computador:</label>
+                            <input type="file" name="logo_file" id="logo_file_input" accept="image/png, image/jpeg, image/svg+xml, image/webp" onchange="previewSelectedLogo(event)" style="background: #0d1117; padding: 10px; border: 1px solid #30363d; border-radius: 6px; width: 100%; color: #fff;">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px;">
+                            <label>Ou informe uma URL direta para a imagem:</label>
+                            <input type="text" name="logo_url" id="logo_url_input" placeholder="https://exemplo.com/sua-logo.png" oninput="previewUrlLogo(this.value)">
+                        </div>
+
+                        <button type="submit" class="btn-primary-block" style="max-width: 250px; padding: 12px 20px;">
+                            <i class="fas fa-check"></i> Salvar Novo Logotipo
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            document.querySelectorAll('.settings-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.settings-nav-item').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+
+            // Se for a aba de branding, esconde a barra de salvar comum (pois a logo tem formulário próprio)
+            const saveBar = document.getElementById('save-settings-bar');
+            if (tabId === 'tab-branding') {
+                saveBar.style.display = 'none';
+            } else {
+                saveBar.style.display = 'block';
+            }
+
+            // Se mudar para a aba de IA e tiver URL, escaneia automaticamente
+            if (tabId === 'tab-ai') {
+                const url = document.getElementById('ollama_url').value;
+                if (url && url.includes('http')) {
+                    detectOllamaModels(false);
+                }
+            }
+        }
+
+        function toggleAiFields() {
+            const val = document.getElementById('ai_provider').value;
+            const ollamaBox = document.getElementById('ai-ollama-box');
+            const cloudBox = document.getElementById('ai-cloud-box');
+            if(val === 'ollama') {
+                ollamaBox.style.display = 'block';
+                cloudBox.style.display = 'none';
+            } else {
+                ollamaBox.style.display = 'none';
+                cloudBox.style.display = 'block';
+            }
+        }
+        toggleAiFields();
+
+        function showFeedback(msg, isSuccess) {
+            const fb = document.getElementById('test-feedback');
+            fb.className = 'alert-box ' + (isSuccess ? 'sev-Baixa' : 'error');
+            fb.style.background = isSuccess ? 'rgba(76, 175, 80, 0.15)' : 'rgba(244, 67, 54, 0.15)';
+            fb.style.color = isSuccess ? '#69f0ae' : '#ff5252';
+            fb.style.borderColor = isSuccess ? '#69f0ae' : '#ff5252';
+            fb.innerHTML = (isSuccess ? '<i class="fas fa-check-circle"></i> ' : '<i class="fas fa-times-circle"></i> ') + msg;
+            fb.style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Preview em tempo real da Logo
+        function previewSelectedLogo(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    document.getElementById('logo-live-preview').src = evt.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function previewUrlLogo(url) {
+            if (url && url.startsWith('http')) {
+                document.getElementById('logo-live-preview').src = url;
+            }
+        }
+
+        function testMispApi() {
+            const url = document.getElementById('misp_url').value;
+            const key = document.getElementById('misp_api_key').value;
+            const ssl = document.getElementById('misp_verify_ssl')?.checked || false;
+            fetch('/api/test-misp-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({url: url, key: key, verify_ssl: ssl})
+            })
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok) {
+                    throw new Error((data && (data.error || data.message)) || `Erro HTTP ${r.status}. Sessão expirada?`);
+                }
+                return data;
+            })
+            .then(d => showFeedback(d.message, d.success))
+            .catch(e => showFeedback('Erro ao chamar teste: ' + e.message, false));
+        }
+
+        function testMispMysql() {
+            const host = document.getElementById('misp_mysql_host').value;
+            const user = document.getElementById('misp_mysql_user').value;
+            const pass = document.getElementById('misp_mysql_password').value;
+            const db = document.getElementById('misp_mysql_database').value;
+            fetch('/api/test-misp-mysql', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({host: host, user: user, password: pass, database: db})
+            })
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok) {
+                    throw new Error((data && (data.error || data.message)) || `Erro HTTP ${r.status}. Sessão expirada?`);
+                }
+                return data;
+            })
+            .then(d => showFeedback(d.message, d.success))
+            .catch(e => showFeedback('Erro ao chamar teste: ' + e.message, false));
+        }
+
+        function detectOllamaModels(showToast = true) {
+            const urlInput = document.getElementById('ollama_url');
+            const url = (urlInput ? urlInput.value : '').trim();
+            const btn = document.getElementById('btn-scan-ollama');
+            const icon = document.getElementById('scan-icon');
+            const badge = document.getElementById('ollama-status-badge');
+            const sel = document.getElementById('ollama_model_select');
+            const currentSelected = sel ? sel.value : '';
+
+            if (!url) {
+                if (showToast) showFeedback('Informe a URL do servidor Ollama para escanear.', false);
+                return;
+            }
+
+            if (icon) icon.className = 'fas fa-spinner fa-spin';
+            if (btn) btn.disabled = true;
+            if (badge) {
+                badge.style.color = '#8b949e';
+                badge.style.borderColor = '#30363d';
+                badge.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 9px;"></i> Escaneando...';
+            }
+
+            fetch('/api/detect-ollama-models?url=' + encodeURIComponent(url))
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok) {
+                    throw new Error((data && (data.error || data.message)) || `Erro HTTP ${r.status}`);
+                }
+                return data;
+            })
+            .then(data => {
+                if (data.success && data.models && data.models.length > 0) {
+                    sel.innerHTML = '';
+                    let foundCurrent = false;
+
+                    data.models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m;
+                        opt.textContent = m;
+                        if (m === currentSelected) {
+                            opt.selected = true;
+                            foundCurrent = true;
+                        }
+                        sel.appendChild(opt);
+                    });
+
+                    // Se o modelo salvo não estiver na lista retornada, mantém ele no topo como opção
+                    if (!foundCurrent && currentSelected) {
+                        const opt = document.createElement('option');
+                        opt.value = currentSelected;
+                        opt.textContent = currentSelected + ' (Atual/Custom)';
+                        opt.selected = true;
+                        sel.insertBefore(opt, sel.firstChild);
+                    }
+
+                    if (badge) {
+                        badge.style.color = '#69f0ae';
+                        badge.style.borderColor = '#69f0ae';
+                        badge.innerHTML = `<i class="fas fa-check-circle"></i> ${data.models.length} modelo(s) detectado(s)`;
+                    }
+
+                    if (showToast) {
+                        showFeedback(`✅ Scan concluído com sucesso! ${data.models.length} modelo(s) encontrado(s): ${data.models.join(', ')}`, true);
+                    }
+                } else if (data.success && (!data.models || data.models.length === 0)) {
+                    if (badge) {
+                        badge.style.color = '#ffab40';
+                        badge.style.borderColor = '#ffab40';
+                        badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Sem modelos baixados';
+                    }
+                    if (showToast) {
+                        showFeedback('⚠️ Servidor Ollama online, mas nenhum modelo foi baixado ainda (execute: ollama pull <modelo>).', false);
+                    }
+                } else {
+                    if (badge) {
+                        badge.style.color = '#ff5252';
+                        badge.style.borderColor = '#ff5252';
+                        badge.innerHTML = '<i class="fas fa-times-circle"></i> Inacessível / Offline';
+                    }
+                    if (showToast) {
+                        showFeedback(`❌ Falha no scan: ${data.error || data.message || 'Servidor Ollama inacessível.'}`, false);
+                    }
+                }
+            })
+            .catch(e => {
+                if (badge) {
+                    badge.style.color = '#ff5252';
+                    badge.style.borderColor = '#ff5252';
+                    badge.innerHTML = '<i class="fas fa-times-circle"></i> Erro de rede';
+                }
+                if (showToast) {
+                    showFeedback('❌ Falha ao consultar Ollama: ' + e.message, false);
+                }
+            })
+            .finally(() => {
+                if (icon) icon.className = 'fas fa-search';
+                if (btn) btn.disabled = false;
+            });
+        }
+
+        function testOllamaConn() {
+            const urlInput = document.getElementById('ollama_url');
+            const url = (urlInput ? urlInput.value : '').trim();
+            if (!url) {
+                showFeedback('Informe a URL do servidor Ollama para testar.', false);
+                return;
+            }
+
+            const btn = event?.currentTarget || document.activeElement;
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testando Conexão...';
+            }
+
+            fetch('/api/detect-ollama-models?url=' + encodeURIComponent(url))
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok) {
+                    throw new Error((data && (data.error || data.message)) || `Erro HTTP ${r.status}`);
+                }
+                return data;
+            })
+            .then(data => {
+                if (data.success) {
+                    if (data.models && data.models.length > 0) {
+                        showFeedback(`✅ ${data.message} (${data.models.length} modelos prontos)`, true);
+                    } else {
+                        showFeedback(`⚠️ ${data.message}`, false);
+                    }
+                } else {
+                    showFeedback(`❌ Falha de Conexão: ${data.error || data.message || 'Servidor Ollama inacessível.'}`, false);
+                }
+            })
+            .catch(e => {
+                showFeedback('❌ Falha de Conexão: ' + e.message, false);
+            })
+            .finally(() => {
+                if (btn && origHtml) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

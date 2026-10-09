@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortex-tip"
+version = "2.2.0"
+description = "Cortex TIP — Threat Intelligence & SOC Platform Docker Stack CLI"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    {name = "Wescley Silva"}
+]
+keywords = [
+    "cortex",
+    "threat-intelligence",
+    "soc",
+    "mariadb",
+    "docker",
+    "misp",
+    "security"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/wescleysilva/cortex"
+DockerHub = "https://hub.docker.com/r/wescleysilva/cortex-tip"
+
+[project.scripts]
+cortex-tip = "cortex_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cortex_cli*"]
+
+[tool.setuptools.package-data]
+cortex_cli = ["docker-compose.yml"]

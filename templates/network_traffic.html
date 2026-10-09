@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tráfego de Rede em Tempo Real - Cortex TIP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Consolas&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=3.4">
+
+    <style>
+        /* Estilos específicos da Central de Tráfego de Rede (Clean Dark - Zero Neon) */
+        .traffic-page-container {
+            padding: 24px;
+            color: #e6edf3;
+        }
+
+        .traffic-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .traffic-stat-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .traffic-stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            background: #21262d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #58a6ff;
+            flex-shrink: 0;
+        }
+
+        .traffic-stat-icon.threat {
+            color: #f85149;
+            background: rgba(248, 81, 73, 0.1);
+        }
+
+        .traffic-stat-icon.success {
+            color: #3fb950;
+            background: rgba(63, 185, 80, 0.1);
+        }
+
+        .traffic-stat-icon.info {
+            color: #79c0ff;
+            background: rgba(88, 166, 255, 0.1);
+        }
+
+        .traffic-stat-info h4 {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .traffic-stat-info .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #f0f6fc;
+            margin-top: 4px;
+            line-height: 1.2;
+        }
+
+        .traffic-toolbar {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 14px 18px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .traffic-toolbar-left, .traffic-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .traffic-search-input {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e6edf3;
+            font-size: 13px;
+            width: 260px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .traffic-search-input:focus {
+            border-color: #58a6ff;
+        }
+
+        .traffic-select {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e6edf3;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .traffic-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 14px;
+            color: #c9d1d9;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .traffic-btn:hover {
+            background: #30363d;
+            color: #fff;
+        }
+
+        .traffic-btn.active {
+            background: rgba(63, 185, 80, 0.15);
+            border-color: #2ea043;
+            color: #3fb950;
+        }
+
+        .table-responsive-traffic {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .traffic-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .traffic-table th {
+            background: #0d1117;
+            color: #8b949e;
+            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid #30363d;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .traffic-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #21262d;
+            color: #c9d1d9;
+            vertical-align: middle;
+        }
+
+        .traffic-table tbody tr {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .traffic-table tbody tr:hover {
+            background: rgba(88, 166, 255, 0.05);
+        }
+
+        .traffic-table tbody tr.row-threat {
+            border-left: 3px solid #da3633;
+            background: rgba(218, 54, 51, 0.04);
+        }
+
+        .traffic-table tbody tr.row-allow {
+            border-left: 3px solid #238636;
+        }
+
+        /* Status limpos - ZERO NEON */
+        .status-badge-clean {
+            font-weight: 600;
+            font-size: 12px;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge-clean.threat {
+            color: #f85149;
+        }
+
+        .status-badge-clean.allow {
+            color: #3fb950;
+        }
+
+        .status-badge-clean.blocked {
+            color: #d29922;
+        }
+
+        .ip-cell {
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            color: #f0f6fc;
+        }
+
+        .proto-badge {
+            background: #21262d;
+            color: #8b949e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'Consolas', monospace;
+        }
+
+        .ioc-tag {
+            color: #f85149;
+            font-weight: 500;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            background: rgba(248, 81, 73, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(248, 81, 73, 0.2);
+        }
+
+        /* DRAWER LATERAL SLIDE-OUT */
+        .drawer-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
+            z-index: 1040;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+
+        .drawer-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .traffic-drawer {
+            position: fixed;
+            top: 0;
+            right: -560px;
+            width: 540px;
+            max-width: 92vw;
+            height: 100vh;
+            background: #0d1117;
+            border-left: 1px solid #30363d;
+            box-shadow: -8px 0 24px rgba(0, 0, 0, 0.5);
+            z-index: 1050;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .traffic-drawer.open {
+            right: 0;
+        }
+
+        .drawer-header {
+            padding: 20px 24px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .drawer-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #f0f6fc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .drawer-close-btn {
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .drawer-close-btn:hover {
+            color: #fff;
+            background: #21262d;
+        }
+
+        .drawer-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .drawer-section {
+            margin-bottom: 24px;
+        }
+
+        .drawer-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #8b949e;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .drawer-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 14px;
+        }
+
+        .drawer-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .drawer-field-label {
+            font-size: 11px;
+            color: #8b949e;
+        }
+
+        .drawer-field-val {
+            font-size: 13px;
+            color: #f0f6fc;
+            font-family: 'Consolas', monospace;
+            word-break: break-all;
+        }
+
+        .raw-log-container {
+            position: relative;
+            background: #010409;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .raw-log-header {
+            background: #161b22;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #21262d;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .copy-log-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .copy-log-btn:hover {
+            background: #30363d;
+            color: #fff;
+        }
+
+        .copy-log-btn.copied {
+            background: rgba(63, 185, 80, 0.2);
+            border-color: #2ea043;
+            color: #3fb950;
+        }
+
+        .raw-log-code {
+            margin: 0;
+            padding: 14px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #8b949e;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 360px;
+            overflow-y: auto;
+        }
+
+        /* Configuração de Firewall Collapsible */
+        .guide-box {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 10px;
+        }
+
+        .guide-header {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+
+        .guide-header h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #f0f6fc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .guide-body {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #21262d;
+            display: none;
+        }
+
+        .guide-body.open {
+            display: block;
+        }
+
+        .fw-tab-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 8px;
+        }
+
+        .fw-tab-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #8b949e;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .fw-tab-btn.active {
+            background: #21262d;
+            color: #58a6ff;
+            border-color: #30363d;
+            font-weight: 600;
+        }
+
+        .fw-snippet {
+            background: #010409;
+            border: 1px solid #21262d;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            color: #c9d1d9;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .fw-snippet.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="wrapper">
+        <!-- Sidebar Principal -->
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li class="active"><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                {% if current_user and current_user.role in ['admin', 'analista'] %}
+                <li class="menu-label">Operações SOC</li>
+                <li><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+                {% endif %}
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+                {% endif %}
+
+                {% if current_user %}
+                <li class="menu-label">Conta</li>
+                <li><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+                {% endif %}
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <!-- Área de Conteúdo -->
+        <div id="content">
+            <!-- Top Bar com Usuário e Ações -->
+            <div class="top-bar" style="margin-bottom: 20px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; color: #fff; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-satellite-dish" style="color: #58a6ff;"></i>
+                        Monitor de Tráfego de Rede em Tempo Real
+                    </h3>
+                    <span style="font-size: 12px; color: #64748b;">Recepção e correlação ativa de telemetria Syslog (UDP 1514) com base de IOCs</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <a href="/" class="btn-auth-link" style="text-decoration: none;">
+                        <i class="fas fa-arrow-left"></i> Voltar ao Dashboard
+                    </a>
+                    {% if current_user %}
+                    <a href="/logout" class="btn-auth-link" style="color: #f85149; text-decoration: none;">
+                        <i class="fas fa-sign-out-alt"></i> Sair
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="traffic-page-container">
+                
+                <!-- Cards de Métricas Superiores -->
+                <div class="traffic-stats-grid">
+                    <div class="traffic-stat-card">
+                        <div class="traffic-stat-icon">
+                            <i class="fas fa-network-wired"></i>
+                        </div>
+                        <div class="traffic-stat-info">
+                            <h4>Total de Pacotes</h4>
+                            <div class="stat-number" id="cardTotalPackets">{{ stats.total_packets|default(0) }}</div>
+                        </div>
+                    </div>
+
+                    <div class="traffic-stat-card">
+                        <div class="traffic-stat-icon threat">
+                            <i class="fas fa-shield-virus"></i>
+                        </div>
+                        <div class="traffic-stat-info">
+                            <h4>Ameaças / IOCs Detectados</h4>
+                            <div class="stat-number" id="cardThreatsBlocked" style="color: #f85149;">{{ stats.total_threats|default(0) }}</div>
+                        </div>
+                    </div>
+
+                    <div class="traffic-stat-card">
+                        <div class="traffic-stat-icon info">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="traffic-stat-info">
+                            <h4>Hosts de Origem Únicos</h4>
+                            <div class="stat-number" id="cardActiveHosts">{{ stats.active_hosts|default(0) }}</div>
+                        </div>
+                    </div>
+
+                    <div class="traffic-stat-card">
+                        <div class="traffic-stat-icon success">
+                            <i class="fas fa-satellite"></i>
+                        </div>
+                        <div class="traffic-stat-info">
+                            <h4>Coletor Syslog UDP</h4>
+                            <div class="stat-number" style="font-size: 18px; color: #3fb950;">Porta {{ syslog_port|default(1514) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de Ferramentas e Filtros -->
+                <div class="traffic-toolbar">
+                    <div class="traffic-toolbar-left">
+                        <input type="text" id="trafficSearchInput" class="traffic-search-input" placeholder="Filtrar por IP, porta ou IOC..." onkeyup="filterTrafficTable()">
+                        
+                        <select id="trafficFilterType" class="traffic-select" onchange="filterTrafficTable()">
+                            <option value="all">Todos os Registros</option>
+                            <option value="threats">Apenas Ameaças (IOCs)</option>
+                            <option value="normal">Apenas Tráfego Permitido</option>
+                        </select>
+                    </div>
+
+                    <div class="traffic-toolbar-right">
+                        <button id="btnAutoRefresh" class="traffic-btn active" onclick="toggleAutoRefresh()">
+                            <i class="fas fa-play" id="iconAutoRefresh"></i>
+                            <span id="textAutoRefresh">Auto-Refresh (3s)</span>
+                        </button>
+                        <button class="traffic-btn" onclick="fetchLiveLogs(true)">
+                            <i class="fas fa-sync-alt" id="iconSync"></i>
+                            Atualizar Agora
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabela de Tráfego Interativo -->
+                <div class="table-responsive-traffic">
+                    <table class="traffic-table" id="trafficTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 150px;">Data / Hora</th>
+                                <th style="width: 140px;">Status</th>
+                                <th>Origem</th>
+                                <th style="width: 30px; text-align: center;"></th>
+                                <th>Destino</th>
+                                <th style="width: 90px;">Protocolo</th>
+                                <th>IOC / Regra</th>
+                                <th style="width: 100px; text-align: right;">Detalhes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trafficTableBody">
+                            {% if initial_logs and initial_logs|length > 0 %}
+                                {% for log in initial_logs %}
+                                <tr class="{{ 'row-threat' if log.is_threat else 'row-allow' }}" onclick='openLogDrawer({{ log|tojson|safe }})'>
+                                    <td style="color: #8b949e; font-family: 'Consolas', monospace;">{{ log.created_at }}</td>
+                                    <td>
+                                        {% if log.is_threat %}
+                                        <span class="status-badge-clean threat"><i class="fas fa-exclamation-triangle"></i> THREAT IOC</span>
+                                        {% else %}
+                                        <span class="status-badge-clean allow"><i class="fas fa-check-circle"></i> ALLOW</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="ip-cell">{{ log.src_ip }}{% if log.port and log.port > 0 %}:{{ log.port }}{% endif %}</td>
+                                    <td style="color: #8b949e; text-align: center;">➔</td>
+                                    <td class="ip-cell">{{ log.dst_ip }}</td>
+                                    <td><span class="proto-badge">{{ log.protocol|default('TCP') }}</span></td>
+                                    <td>
+                                        {% if log.matched_ioc %}
+                                        <span class="ioc-tag"><i class="fas fa-bug"></i> {{ log.matched_ioc }}</span>
+                                        {% else %}
+                                        <span style="color: #6e7681; font-size: 12px;">--</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <button class="traffic-btn" style="padding: 3px 8px; font-size: 11px;" onclick='event.stopPropagation(); openLogDrawer({{ log|tojson|safe }})'>
+                                            <i class="fas fa-terminal"></i> Inspecionar
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr id="noDataRow">
+                                    <td colspan="8" style="text-align: center; padding: 40px; color: #8b949e;">
+                                        <i class="fas fa-satellite-dish" style="font-size: 28px; margin-bottom: 12px; display: block; color: #58a6ff;"></i>
+                                        Aguardando pacotes reais de rede do seu Firewall na porta UDP {{ syslog_port|default(1514) }}...<br>
+                                        <span style="font-size: 11px; color: #6e7681; margin-top: 6px; display: inline-block;">
+                                            O gerador de simulação foi desativado. Nenhum tráfego artificial será gerado.
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Guia Rápido: Como apontar Firewall Real para o Cortex -->
+                <div class="guide-box">
+                    <div class="guide-header" onclick="toggleGuide()">
+                        <h4>
+                            <i class="fas fa-book-open" style="color: #58a6ff;"></i>
+                            Como Configurar seu Firewall Físico / Virtual para Enviar Syslog ao Cortex
+                        </h4>
+                        <i class="fas fa-chevron-down" id="guideChevron" style="color: #8b949e; transition: transform 0.2s;"></i>
+                    </div>
+                    <div class="guide-body" id="guideBody">
+                        <p style="font-size: 13px; color: #8b949e; margin-top: 0;">
+                            Aponte o envio de Syslog do seu firewall para o IP deste servidor na porta <strong>UDP 1514</strong>. O Cortex decodificará os cabeçalhos de conexão e cruzará automaticamente IPs de origem e destino com a base de inteligência de ameaças.
+                        </p>
+
+                        <div class="fw-tab-nav">
+                            <button class="fw-tab-btn active" onclick="switchFwTab('fortigate')">FortiGate (FortiOS)</button>
+                            <button class="fw-tab-btn" onclick="switchFwTab('pfsense')">pfSense / OPNsense</button>
+                            <button class="fw-tab-btn" onclick="switchFwTab('mikrotik')">MikroTik RouterOS</button>
+                            <button class="fw-tab-btn" onclick="switchFwTab('cisco')">Cisco ASA / IOS</button>
+                            <button class="fw-tab-btn" onclick="switchFwTab('linux')">Linux (rsyslog / iptables)</button>
+                        </div>
+
+                        <pre class="fw-snippet active" id="snippet-fortigate"><code># FortiOS CLI
+config log syslogd setting
+    set status enable
+    set server "&lt;IP_DO_CORTEX&gt;"
+    set mode udp
+    set port 1514
+    set facility local7
+end</code></pre>
+
+                        <pre class="fw-snippet" id="snippet-pfsense"><code># pfSense / OPNsense WebGUI:
+Status > System Logs > Settings > Remote Logging Options
+1. Marque: "Enable Remote Logging"
+2. Remote log servers: &lt;IP_DO_CORTEX&gt;:1514
+3. Remote Syslog Contents: Marque "Firewall Events"
+4. Salve e aplique.</code></pre>
+
+                        <pre class="fw-snippet" id="snippet-mikrotik"><code># MikroTik RouterOS Terminal
+/system logging action add name=cortex-syslog target=remote remote=&lt;IP_DO_CORTEX&gt; remote-port=1514
+/system logging add action=cortex-syslog topics=firewall,info</code></pre>
+
+                        <pre class="fw-snippet" id="snippet-cisco"><code># Cisco ASA / IOS CLI
+logging enable
+logging host inside &lt;IP_DO_CORTEX&gt; udp/1514
+logging trap informational
+logging facility 23</code></pre>
+
+                        <pre class="fw-snippet" id="snippet-linux"><code># Linux /etc/rsyslog.d/50-cortex.conf
+*.* @&lt;IP_DO_CORTEX&gt;:1514
+
+# Reiniciar serviço
+sudo systemctl restart rsyslog</code></pre>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Backdrop escuro para fechar gaveta ao clicar fora -->
+    <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeLogDrawer()"></div>
+
+    <!-- DRAWER LATERAL SLIDE-OUT COM PAYLOAD RAW E JSON -->
+    <div class="traffic-drawer" id="logDetailDrawer">
+        <div class="drawer-header">
+            <h3>
+                <i class="fas fa-cube" style="color: #58a6ff;"></i>
+                Detalhes do Registro de Tráfego
+            </h3>
+            <button class="drawer-close-btn" onclick="closeLogDrawer()" title="Fechar gaveta">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="drawer-body">
+            <!-- Visão Resumo -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">
+                    <i class="fas fa-info-circle"></i> Resumo da Conexão
+                </div>
+                <div class="drawer-grid">
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Status do Pacote</span>
+                        <span class="drawer-field-val" id="drawerStatusText">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Data e Hora</span>
+                        <span class="drawer-field-val" id="drawerTimeText">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Endereço de Origem (SRC)</span>
+                        <span class="drawer-field-val" id="drawerSrcIp">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Porta de Origem</span>
+                        <span class="drawer-field-val" id="drawerSrcPort">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Endereço de Destino (DST)</span>
+                        <span class="drawer-field-val" id="drawerDstIp">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Protocolo</span>
+                        <span class="drawer-field-val" id="drawerProtocol">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Ação Aplicada</span>
+                        <span class="drawer-field-val" id="drawerAction">--</span>
+                    </div>
+                    <div class="drawer-field">
+                        <span class="drawer-field-label">Severidade</span>
+                        <span class="drawer-field-val" id="drawerSeverity">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cruzamento de IOC / Alerta -->
+            <div class="drawer-section" id="drawerIocSection" style="display: none;">
+                <div class="drawer-section-title" style="color: #f85149;">
+                    <i class="fas fa-shield-virus"></i> Alerta de Indicador de Ameaça (IOC Match)
+                </div>
+                <div style="background: rgba(248, 81, 73, 0.08); border: 1px solid rgba(248, 81, 73, 0.3); border-radius: 6px; padding: 14px;">
+                    <div style="font-size: 12px; color: #f85149; font-weight: 600; margin-bottom: 6px;">
+                        IP INTERCEPTADO ENCONTRADO NA BASE DE THREAT INTELLIGENCE
+                    </div>
+                    <div style="font-size: 13px; color: #f0f6fc; font-family: 'Consolas', monospace; word-break: break-all;">
+                        IOC: <span id="drawerIocValue" style="color: #f85149; font-weight: 700;">--</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <a id="drawerIocSearchLink" href="#" target="_blank" class="traffic-btn" style="padding: 4px 10px; font-size: 11px; background: #21262d; border-color: #30363d; color: #58a6ff;">
+                            <i class="fas fa-external-link-alt"></i> Investigar no Cortex
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log Bruto e Dados JSON com Copiar -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">
+                    <i class="fas fa-code"></i> Payload Syslog Completo (Raw / JSON)
+                </div>
+                <div class="raw-log-container">
+                    <div class="raw-log-header">
+                        <span>Formato do Pacote</span>
+                        <button class="copy-log-btn" id="btnCopyLog" onclick="copyDrawerLog()">
+                            <i class="fas fa-copy" id="iconCopy"></i>
+                            <span id="textCopy">Copiar Log</span>
+                        </button>
+                    </div>
+                    <pre class="raw-log-code"><code id="drawerRawPayload">--</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts da Página -->
+    <script>
+        let currentLogs = {{ initial_logs|tojson|safe }} || [];
+        let autoRefreshInterval = null;
+        let isAutoRefreshActive = true;
+        let selectedLogRaw = '';
+
+        // Helper para escapar HTML seguro
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Abre a gaveta lateral com os detalhes do pacote
+        function openLogDrawer(log) {
+            if (!log) return;
+
+            const isThreat = log.is_threat == 1 || log.is_threat === true;
+            const statusEl = document.getElementById('drawerStatusText');
+            if (isThreat) {
+                statusEl.innerHTML = '<span class="status-badge-clean threat"><i class="fas fa-exclamation-triangle"></i> THREAT IOC</span>';
+            } else {
+                statusEl.innerHTML = '<span class="status-badge-clean allow"><i class="fas fa-check-circle"></i> ALLOW</span>';
+            }
+
+            document.getElementById('drawerTimeText').textContent = log.created_at || '--';
+            document.getElementById('drawerSrcIp').textContent = log.src_ip || '--';
+            document.getElementById('drawerSrcPort').textContent = log.port || '--';
+            document.getElementById('drawerDstIp').textContent = log.dst_ip || '--';
+            document.getElementById('drawerProtocol').textContent = log.protocol || 'TCP';
+            document.getElementById('drawerAction').textContent = log.action || 'PASS';
+            document.getElementById('drawerSeverity').textContent = log.threat_severity || (isThreat ? 'Alto' : 'Baixo');
+
+            // Seção de IOC
+            const iocSection = document.getElementById('drawerIocSection');
+            const iocVal = document.getElementById('drawerIocValue');
+            const iocLink = document.getElementById('drawerIocSearchLink');
+
+            if (log.matched_ioc) {
+                iocVal.textContent = log.matched_ioc;
+                iocLink.href = '/search?query=' + encodeURIComponent(log.matched_ioc);
+                iocSection.style.display = 'block';
+            } else {
+                iocSection.style.display = 'none';
+            }
+
+            // Exibição do Log Bruto / JSON Formatado
+            let rawContent = log.raw_message || '';
+            if (!rawContent || rawContent.trim() === '') {
+                // Monta JSON legível caso não haja raw syslog puro
+                rawContent = JSON.stringify(log, null, 2);
+            } else {
+                // Se o raw_message for um JSON serializado, formata com indentação
+                try {
+                    const parsed = JSON.parse(rawContent);
+                    rawContent = JSON.stringify(parsed, null, 2);
+                } catch (e) {
+                    // Mantém string original se não for JSON
+                }
+            }
+
+            selectedLogRaw = rawContent;
+            document.getElementById('drawerRawPayload').textContent = rawContent;
+
+            // Reseta botão de copiar
+            const copyBtn = document.getElementById('btnCopyLog');
+            const copyIcon = document.getElementById('iconCopy');
+            const copyText = document.getElementById('textCopy');
+            copyBtn.classList.remove('copied');
+            copyIcon.className = 'fas fa-copy';
+            copyText.textContent = 'Copiar Log';
+
+            // Abre gaveta e ativa backdrop
+            document.getElementById('logDetailDrawer').classList.add('open');
+            document.getElementById('drawerBackdrop').classList.add('active');
+        }
+
+        // Fecha a gaveta lateral
+        function closeLogDrawer() {
+            document.getElementById('logDetailDrawer').classList.remove('open');
+            document.getElementById('drawerBackdrop').classList.remove('active');
+        }
+
+        // Copiar Log para área de transferência
+        function copyDrawerLog() {
+            if (!selectedLogRaw) return;
+            navigator.clipboard.writeText(selectedLogRaw).then(() => {
+                const copyBtn = document.getElementById('btnCopyLog');
+                const copyIcon = document.getElementById('iconCopy');
+                const copyText = document.getElementById('textCopy');
+                copyBtn.classList.add('copied');
+                copyIcon.className = 'fas fa-check';
+                copyText.textContent = 'Copiado!';
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyIcon.className = 'fas fa-copy';
+                    copyText.textContent = 'Copiar Log';
+                }, 2500);
+            }).catch(err => {
+                console.error('Erro ao copiar log:', err);
+            });
+        }
+
+        // Atualização dos logs via API
+        function fetchLiveLogs(isManual = false) {
+            const syncIcon = document.getElementById('iconSync');
+            if (isManual && syncIcon) syncIcon.classList.add('fa-spin');
+
+            fetch('/api/live-traffic?limit=100')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+
+                    // Atualiza métricas superiores
+                    if (data.stats) {
+                        const totalPackets = data.stats.total_packets || 0;
+                        const threats = data.stats.total_threats || data.stats.threats_blocked || 0;
+                        const hosts = data.stats.active_hosts || 0;
+
+                        const pEl = document.getElementById('cardTotalPackets');
+                        const tEl = document.getElementById('cardThreatsBlocked');
+                        const hEl = document.getElementById('cardActiveHosts');
+
+                        if (pEl) pEl.textContent = totalPackets.toLocaleString();
+                        if (tEl) tEl.textContent = threats.toLocaleString();
+                        if (hEl) hEl.textContent = hosts.toLocaleString();
+                    }
+
+                    currentLogs = data.logs || [];
+                    renderTrafficTable(currentLogs);
+                })
+                .catch(err => console.error('Erro ao atualizar tráfego:', err))
+                .finally(() => {
+                    if (isManual && syncIcon) {
+                        setTimeout(() => syncIcon.classList.remove('fa-spin'), 600);
+                    }
+                });
+        }
+
+        // Renderiza as linhas na tabela
+        function renderTrafficTable(logs) {
+            const tbody = document.getElementById('trafficTableBody');
+            if (!tbody) return;
+
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="noDataRow">
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #8b949e;">
+                            <i class="fas fa-satellite-dish" style="font-size: 28px; margin-bottom: 12px; display: block; color: #58a6ff;"></i>
+                            Aguardando pacotes reais de rede do seu Firewall na porta UDP {{ syslog_port|default(1514) }}...<br>
+                            <span style="font-size: 11px; color: #6e7681; margin-top: 6px; display: inline-block;">
+                                O gerador de simulação foi desativado. Nenhum tráfego artificial será gerado.
+                            </span>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const searchVal = (document.getElementById('trafficSearchInput').value || '').toLowerCase().trim();
+            const filterType = document.getElementById('trafficFilterType').value;
+
+            const filtered = logs.filter(l => {
+                const isThreat = l.is_threat == 1 || l.is_threat === true;
+                if (filterType === 'threats' && !isThreat) return false;
+                if (filterType === 'normal' && isThreat) return false;
+
+                if (searchVal) {
+                    const matchSrc = (l.src_ip || '').toLowerCase().includes(searchVal);
+                    const matchDst = (l.dst_ip || '').toLowerCase().includes(searchVal);
+                    const matchPort = String(l.port || '').includes(searchVal);
+                    const matchProto = (l.protocol || '').toLowerCase().includes(searchVal);
+                    const matchIoc = (l.matched_ioc || '').toLowerCase().includes(searchVal);
+                    const matchRaw = (l.raw_message || '').toLowerCase().includes(searchVal);
+                    return matchSrc || matchDst || matchPort || matchProto || matchIoc || matchRaw;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 30px; color: #8b949e;">
+                            Nenhum registro corresponde aos filtros pesquisados.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(log => {
+                const isThreat = log.is_threat == 1 || log.is_threat === true;
+                const statusHtml = isThreat
+                    ? '<span class="status-badge-clean threat"><i class="fas fa-exclamation-triangle"></i> THREAT IOC</span>'
+                    : '<span class="status-badge-clean allow"><i class="fas fa-check-circle"></i> ALLOW</span>';
+
+                const iocHtml = log.matched_ioc
+                    ? `<span class="ioc-tag"><i class="fas fa-bug"></i> ${escapeHtml(log.matched_ioc)}</span>`
+                    : '<span style="color: #6e7681; font-size: 12px;">--</span>';
+
+                const logJsonStr = JSON.stringify(log).replace(/'/g, "&#39;");
+
+                return `
+                    <tr class="${isThreat ? 'row-threat' : 'row-allow'}" onclick='openLogDrawer(${logJsonStr})'>
+                        <td style="color: #8b949e; font-family: 'Consolas', monospace;">${escapeHtml(log.created_at)}</td>
+                        <td>${statusHtml}</td>
+                        <td class="ip-cell">${escapeHtml(log.src_ip)}${log.port && log.port > 0 ? ':' + log.port : ''}</td>
+                        <td style="color: #8b949e; text-align: center;">➔</td>
+                        <td class="ip-cell">${escapeHtml(log.dst_ip)}</td>
+                        <td><span class="proto-badge">${escapeHtml(log.protocol || 'TCP')}</span></td>
+                        <td>${iocHtml}</td>
+                        <td style="text-align: right;">
+                            <button class="traffic-btn" style="padding: 3px 8px; font-size: 11px;" onclick='event.stopPropagation(); openLogDrawer(${logJsonStr})'>
+                                <i class="fas fa-terminal"></i> Inspecionar
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Filtro rápido da tabela
+        function filterTrafficTable() {
+            renderTrafficTable(currentLogs);
+        }
+
+        // Controle do Auto-Refresh
+        function toggleAutoRefresh() {
+            isAutoRefreshActive = !isAutoRefreshActive;
+            const btn = document.getElementById('btnAutoRefresh');
+            const icon = document.getElementById('iconAutoRefresh');
+            const text = document.getElementById('textAutoRefresh');
+
+            if (isAutoRefreshActive) {
+                btn.classList.add('active');
+                icon.className = 'fas fa-play';
+                text.textContent = 'Auto-Refresh (3s)';
+                startAutoRefresh();
+            } else {
+                btn.classList.remove('active');
+                icon.className = 'fas fa-pause';
+                text.textContent = 'Pausado';
+                stopAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            autoRefreshInterval = setInterval(() => {
+                fetchLiveLogs(false);
+            }, 3000);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // Fechar gaveta com a tecla Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeLogDrawer();
+            }
+        });
+
+        // Toggle do Guia de Configuração de Firewall
+        function toggleGuide() {
+            const body = document.getElementById('guideBody');
+            const chev = document.getElementById('guideChevron');
+            body.classList.toggle('open');
+            if (body.classList.contains('open')) {
+                chev.style.transform = 'rotate(180deg)';
+            } else {
+                chev.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function switchFwTab(fwName) {
+            document.querySelectorAll('.fw-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.fw-snippet').forEach(snip => snip.classList.remove('active'));
+
+            event.target.classList.add('active');
+            const target = document.getElementById('snippet-' + fwName);
+            if (target) target.classList.add('active');
+        }
+
+        // Inicia loop de auto-refresh no carregamento da página
+        document.addEventListener('DOMContentLoaded', () => {
+            startAutoRefresh();
+        });
+    </script>
+</body>
+</html>

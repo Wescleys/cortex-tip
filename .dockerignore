@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+.github
+
+# Ambientes virtuais e caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Dados locais e logs
+*.db
+*.sqlite
+cortex_system.db
+logs/
+cache/
+scratch/
+.agents/
+
+# CLI e documentação binária
+cortex-cli/
+*.pdf
+.env

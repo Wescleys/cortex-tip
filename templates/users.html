@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Usuários - Cortex TIP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                {% if current_user and current_user.role in ['admin', 'analista'] %}
+                <li class="menu-label">Operações SOC</li>
+                <li><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+                {% endif %}
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li class="active"><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+                {% endif %}
+
+                
+                <li class="menu-label">Conta</li>
+                <li><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <div class="top-bar">
+                <div>
+                    <h2>Gerenciamento de Usuários & Acessos</h2>
+                    <p style="color: var(--text-muted); margin: 5px 0 0; font-size: 14px;">
+                        Controle de operadores, analistas e administradores da plataforma Cortex.
+                    </p>
+                </div>
+
+                <div class="user-menu-area">
+                    {% if current_user %}
+                    <a href="/profile" class="user-badge" style="text-decoration: none; cursor: pointer;" title="Meu Perfil">
+                        <i class="fas fa-user-shield"></i>
+                        <span>{{ current_user.first_name }} {{ current_user.last_name }}</span>
+                        <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </a>
+                    <a href="/logout" class="btn-auth-link btn-danger-hover"><i class="fas fa-sign-out-alt"></i> Sair</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ 'error' if category == 'error' else 'success' if category == 'success' else 'warning' }}" style="margin-bottom: 20px;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Barra Superior da Tabela com Botão de Ação -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; color: #fff;"><i class="fas fa-users" style="color: var(--color-ip); margin-right: 8px;"></i> Operadores do Sistema</h3>
+                    <span style="font-size: 13px; color: var(--text-muted);">{{ users|length }} usuário(s) registrado(s)</span>
+                </div>
+                <button type="button" class="btn-primary" onclick="openNewUserModal()" style="display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; font-size: 13px; border-radius: 6px; cursor: pointer; border: none; background: #2196f3; color: #fff; font-weight: 500;">
+                    <i class="fas fa-user-plus"></i> Novo Usuário
+                </button>
+            </div>
+
+            <!-- Tabela de Usuários Cadastrados -->
+            <div class="table-container">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome Completo</th>
+                            <th>E-mail</th>
+                            <th>Cargo</th>
+                            <th>Status</th>
+                            <th>Data de Cadastro</th>
+                            <th style="min-width: 220px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td>#{{ u.id }}</td>
+                            <td><strong>{{ u.first_name }} {{ u.last_name }}</strong></td>
+                            <td>{{ u.email }}</td>
+                            <td>
+                                <span class="role-tag role-{{ u.role }}">{{ u.role|upper }}</span>
+                            </td>
+                            <td>
+                                {% if u.is_active %}
+                                    <span style="color: #69f0ae;"><i class="fas fa-check-circle"></i> Ativo</span>
+                                {% else %}
+                                    <span style="color: #ff5252;"><i class="fas fa-ban"></i> Inativo</span>
+                                {% endif %}
+                            </td>
+                            <td style="color: var(--text-muted); font-size: 13px;">{{ u.created_at }}</td>
+                            <td>
+                                {% if u.id != current_user.id %}
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                                    <!-- Botão Editar -->
+                                    <button type="button" class="btn-tool" 
+                                            onclick="openEditUserModal({{ u.id }}, '{{ u.first_name }}', '{{ u.last_name }}', '{{ u.email }}', '{{ u.role }}', {{ 1 if u.is_active else 0 }})" 
+                                            title="Editar dados e permissões" 
+                                            style="padding: 5px 9px; font-size: 11px;">
+                                        <i class="fas fa-user-edit"></i> Editar
+                                    </button>
+
+                                    <!-- Botão Alternar Status -->
+                                    <form action="/users/toggle-status/{{ u.id }}" method="POST" style="margin: 0; display: inline;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn-tool" 
+                                                title="{{ 'Desativar acesso' if u.is_active else 'Ativar acesso' }}" 
+                                                style="padding: 5px 9px; font-size: 11px; color: {{ '#ffab40' if u.is_active else '#69f0ae' }};">
+                                            <i class="fas fa-power-off"></i> {{ 'Desativar' if u.is_active else 'Ativar' }}
+                                        </button>
+                                    </form>
+
+                                    <!-- Botão Excluir -->
+                                    <button type="button" class="btn-tool btn-danger-hover" 
+                                            onclick="openDeleteUserModal({{ u.id }}, '{{ u.first_name }} {{ u.last_name }}')" 
+                                            title="Excluir usuário" 
+                                            style="padding: 5px 9px; font-size: 11px; color: #ff5252;">
+                                        <i class="fas fa-trash-alt"></i> Excluir
+                                    </button>
+                                </div>
+                                {% else %}
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <a href="/profile" class="btn-tool" style="padding: 5px 10px; font-size: 11px; text-decoration: none;">
+                                        <i class="fas fa-user-cog"></i> Meu Perfil
+                                    </a>
+                                    <span style="font-size: 11px; color: var(--text-muted);">(Sua Conta)</span>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 1: NOVO USUÁRIO                      -->
+    <!-- ========================================== -->
+    <div id="modal-new-user" class="cortex-modal-backdrop" style="display: none;">
+        <div class="cortex-modal-dialog">
+            <div class="cortex-modal-content">
+                <div class="cortex-modal-header">
+                    <h3><i class="fas fa-user-plus" style="color: var(--color-ip);"></i> Cadastrar Novo Usuário</h3>
+                    <button type="button" class="btn-modal-close" onclick="closeNewUserModal()">&times;</button>
+                </div>
+                <form action="/users/create" method="POST" class="auth-form" style="padding: 0; margin: 0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="cortex-modal-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label>Nome</label>
+                                <input type="text" name="first_name" placeholder="Ex: Carlos" required>
+                            </div>
+                            <div>
+                                <label>Sobrenome</label>
+                                <input type="text" name="last_name" placeholder="Ex: Ferreira" required>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>E-mail</label>
+                            <input type="email" name="email" placeholder="carlos@empresa.com" required>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>Cargo / Perfil</label>
+                            <select name="role" required>
+                                <option value="analista">Analista (Adiciona e Consulta IOCs)</option>
+                                <option value="admin">Administrador (Acesso Total)</option>
+                                <option value="visualizador">Visualizador (Somente Leitura)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Senha Inicial</label>
+                            <input type="password" name="password" placeholder="Mínimo 8 caracteres" minlength="8" required>
+                        </div>
+                    </div>
+                    <div class="cortex-modal-footer">
+                        <button type="button" class="btn-tool" onclick="closeNewUserModal()">Cancelar</button>
+                        <button type="submit" class="btn-primary-block" style="width: auto; margin: 0; padding: 9px 20px;">
+                            <i class="fas fa-check"></i> Cadastrar Usuário
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 2: EDITAR USUÁRIO                    -->
+    <!-- ========================================== -->
+    <div id="modal-edit-user" class="cortex-modal-backdrop" style="display: none;">
+        <div class="cortex-modal-dialog">
+            <div class="cortex-modal-content">
+                <div class="cortex-modal-header">
+                    <h3><i class="fas fa-user-edit" style="color: var(--color-ip);"></i> Editar Usuário</h3>
+                    <button type="button" class="btn-modal-close" onclick="closeEditUserModal()">&times;</button>
+                </div>
+                <form id="form-edit-user" action="" method="POST" class="auth-form" style="padding: 0; margin: 0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="cortex-modal-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label>Nome</label>
+                                <input type="text" id="edit-first-name" name="first_name" required>
+                            </div>
+                            <div>
+                                <label>Sobrenome</label>
+                                <input type="text" id="edit-last-name" name="last_name" required>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>E-mail</label>
+                            <input type="email" id="edit-email" name="email" required>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label>Cargo / Perfil</label>
+                                <select id="edit-role" name="role" required>
+                                    <option value="analista">Analista</option>
+                                    <option value="admin">Administrador</option>
+                                    <option value="visualizador">Visualizador</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Status da Conta</label>
+                                <select id="edit-status" name="is_active" required>
+                                    <option value="1">Ativo (Acesso Liberado)</option>
+                                    <option value="0">Inativo (Acesso Bloqueado)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label>Redefinir Senha <small style="color: var(--text-muted); font-weight: normal;">(Deixe em branco para não alterar)</small></label>
+                            <input type="password" name="password" placeholder="Nova senha (mínimo 8 caracteres)" minlength="8">
+                        </div>
+                    </div>
+                    <div class="cortex-modal-footer">
+                        <button type="button" class="btn-tool" onclick="closeEditUserModal()">Cancelar</button>
+                        <button type="submit" class="btn-primary-block" style="width: auto; margin: 0; padding: 9px 20px;">
+                            <i class="fas fa-save"></i> Salvar Alterações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 3: CONFIRMAÇÃO DE EXCLUSÃO           -->
+    <!-- ========================================== -->
+    <div id="modal-delete-user" class="cortex-modal-backdrop" style="display: none;">
+        <div class="cortex-modal-dialog" style="max-width: 440px;">
+            <div class="cortex-modal-content">
+                <div class="cortex-modal-header" style="border-bottom-color: rgba(255, 82, 82, 0.3);">
+                    <h3 style="color: #ff5252;"><i class="fas fa-exclamation-triangle"></i> Confirmar Exclusão</h3>
+                    <button type="button" class="btn-modal-close" onclick="closeDeleteUserModal()">&times;</button>
+                </div>
+                <form id="form-delete-user" action="" method="POST" style="margin: 0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="cortex-modal-body">
+                        <p style="margin: 0; color: #e6edf3; font-size: 14px; line-height: 1.5;">
+                            Tem certeza que deseja excluir permanentemente o usuário <strong id="delete-user-name" style="color: #ff5252;"></strong>?
+                        </p>
+                        <p style="margin: 10px 0 0; color: var(--text-muted); font-size: 12px;">
+                            Esta ação é irreversível e removerá todos os acessos do operador à plataforma.
+                        </p>
+                    </div>
+                    <div class="cortex-modal-footer">
+                        <button type="button" class="btn-tool" onclick="closeDeleteUserModal()">Cancelar</button>
+                        <button type="submit" class="btn-tool" style="background: #da3633; color: #fff; border-color: #f85149; padding: 9px 18px; font-weight: 500;">
+                            <i class="fas fa-trash-alt"></i> Sim, Excluir Usuário
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts dos Modais -->
+    <script>
+        // Modal Novo Usuário
+        function openNewUserModal() {
+            document.getElementById('modal-new-user').style.display = 'flex';
+        }
+        function closeNewUserModal() {
+            document.getElementById('modal-new-user').style.display = 'none';
+        }
+
+        // Modal Editar Usuário
+        function openEditUserModal(id, firstName, lastName, email, role, isActive) {
+            document.getElementById('form-edit-user').action = `/users/edit/${id}`;
+            document.getElementById('edit-first-name').value = firstName;
+            document.getElementById('edit-last-name').value = lastName;
+            document.getElementById('edit-email').value = email;
+            document.getElementById('edit-role').value = role;
+            document.getElementById('edit-status').value = isActive;
+            document.getElementById('modal-edit-user').style.display = 'flex';
+        }
+        function closeEditUserModal() {
+            document.getElementById('modal-edit-user').style.display = 'none';
+        }
+
+        // Modal Excluir Usuário
+        function openDeleteUserModal(id, fullName) {
+            document.getElementById('form-delete-user').action = `/users/delete/${id}`;
+            document.getElementById('delete-user-name').innerText = fullName;
+            document.getElementById('modal-delete-user').style.display = 'flex';
+        }
+        function closeDeleteUserModal() {
+            document.getElementById('modal-delete-user').style.display = 'none';
+        }
+
+        // Fechar com tecla ESC
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeNewUserModal();
+                closeEditUserModal();
+                closeDeleteUserModal();
+            }
+        });
+
+        // Fechar ao clicar fora do modal (no backdrop)
+        window.addEventListener('click', function(event) {
+            const mNew = document.getElementById('modal-new-user');
+            const mEdit = document.getElementById('modal-edit-user');
+            const mDel = document.getElementById('modal-delete-user');
+            if (event.target === mNew) closeNewUserModal();
+            if (event.target === mEdit) closeEditUserModal();
+            if (event.target === mDel) closeDeleteUserModal();
+        });
+    </script>
+</body>
+</html>
+

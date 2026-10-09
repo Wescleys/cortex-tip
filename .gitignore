@@ -1,0 +1,57 @@
+# ============================================
+# Cortex TIP - .gitignore
+# ============================================
+
+# Banco de Dados Local SQLite e Dados de Auditoria
+*.db
+*.sqlite
+*.sqlite3
+cortex_system.db
+
+# Logs de Execução e Auditoria
+logs/
+*.log
+
+# Cache Local de IoCs e Enriquecimento
+cache/
+*.cache
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Ambientes Virtuais
+venv/
+.venv/
+env/
+ENV/
+
+# Variáveis de Ambiente e Segredos
+.env
+.env.*
+!.env.example
+
+# IDEs e Ferramentas de Desenvolvimento
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Regras de IA / Copilot
+.github/instructions/codacy.instructions.md
+
+# Scripts e Testes Temporários / Relatórios Locais
+scratch/
+Analise-de-Vulnerabilidades/
+
+# Pacotes e Builds Python
+dist/
+build/
+*.egg-info/

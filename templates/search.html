@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscar IOC - Threat Intel Platform</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet & Vis-Network & Marked.js & DOMPurify -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li class="active"><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                {% if current_user and current_user.role in ['admin', 'analista'] %}
+                <li class="menu-label">Operações SOC</li>
+                <li><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+                {% endif %}
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+                {% endif %}
+
+                {% if current_user %}
+                <li class="menu-label">Conta</li>
+                <li><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+                {% endif %}
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            
+            <div class="top-bar" style="margin-bottom: 20px;">
+                <div>
+                    <h2>Investigação de Indicadores</h2>
+                </div>
+
+                <div class="user-menu-area">
+                    {% if current_user %}
+                    <a href="/profile" class="user-badge" style="text-decoration: none; cursor: pointer;" title="Meu Perfil">
+                        <i class="fas fa-user-shield"></i>
+                        <span>{{ current_user.first_name }} {{ current_user.last_name }}</span>
+                        <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </a>
+                    <a href="/logout" class="btn-auth-link btn-danger-hover"><i class="fas fa-sign-out-alt"></i> Sair</a>
+                    {% else %}
+                    <a href="/login" class="btn-auth-link"><i class="fas fa-sign-in-alt"></i> Entrar</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="search-page-header">
+                <h2>Centro de Investigação & Análise</h2>
+                <p>Pesquise por IPs, Domínios, URLs ou Hashes na base de inteligência com correlação e parecer de IA.</p>
+                
+                <form action="/search" method="GET" class="main-search-form">
+                    <input type="text" name="query" value="{{ query if query else '' }}" placeholder="Ex: 192.168.1.1, google.com, md5..." required autofocus>
+                    <button type="submit"><i class="fas fa-search"></i> Pesquisar</button>
+                </form>
+            </div>
+
+            <hr class="divider">
+
+            <div class="results-container">
+                
+                {% if error %}
+                    <div class="alert-box error">
+                        <i class="fas fa-exclamation-circle"></i> {{ error }}
+                    </div>
+                {% elif query and not results %}
+                    <div class="alert-box warning">
+                        <i class="fas fa-search-minus"></i> Nenhum resultado encontrado para "<strong>{{ query }}</strong>" na base MISP local.
+                    </div>
+                {% endif %}
+
+                {% if results %}
+                    <!-- Barra de Abas de Navegação de IOCs (apenas quando múltiplos IOCs forem pesquisados) -->
+                    {% if tabs_list and tabs_list|length > 1 %}
+                    <div class="ioc-tabs-wrapper" id="ioc-tabs-wrapper">
+                        <div class="ioc-tabs-container" id="ioc-tabs-container">
+                            {% for tab in tabs_list %}
+                            <div class="ioc-tab {% if loop.first %}active{% endif %}" id="tab-btn-{{ loop.index }}" onclick="switchIocTab({{ loop.index }})" data-ioc="{{ tab.value }}">
+                                <span class="ioc-tab-dot loading" id="tab-dot-{{ loop.index }}"></span>
+                                <span class="ioc-tab-title" title="{{ tab.value }}"><i class="fas fa-globe" style="font-size: 11px; margin-right: 4px;"></i> {{ tab.value }}</span>
+                                <span class="ioc-tab-close" onclick="closeIocTab(event, {{ loop.index }})" title="Fechar esta aba">&times;</span>
+                            </div>
+                            {% endfor %}
+                            <button type="button" class="ioc-tab-add-btn" onclick="promptAddIoc()" title="Adicionar outro IP/IOC para comparar">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                        <div class="results-meta" style="margin: 0;">
+                            Resultados encontrados para: <span>{{ query }}</span>
+                            <small>(Consulta em: {{ date }})</small>
+                        </div>
+
+                        <!-- Alternador de Visualização: Lista vs Grafo -->
+                        <div class="search-view-tabs" style="margin: 0;">
+                            <button class="btn-view-tab active" id="btn-view-list" onclick="setViewMode('list')">
+                                <i class="fas fa-list"></i> Visão em Lista
+                            </button>
+                            <button class="btn-view-tab" id="btn-view-graph" onclick="setViewMode('graph')">
+                                <i class="fas fa-project-diagram"></i> Grafo de Correlação
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Container do Grafo de Correlação -->
+                    <div id="correlation-graph-wrapper" style="display: none;">
+                        <div class="graph-toolbar">
+                            <div class="graph-legend">
+                                <span class="legend-item"><span class="legend-dot" style="background: #388bfd;"></span> IOC Alvo</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #f0883e;"></span> MISP</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #f85149;"></span> VirusTotal</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #ff7b72;"></span> AbuseIPDB</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #39c5bb;"></span> AlienVault OTX</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #58a6ff;"></span> Shodan Portas</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #3fb950;"></span> Geo / Infra</span>
+                                <span class="legend-item"><span class="legend-dot" style="background: #bc8cff;"></span> MITRE ATT&CK</span>
+                            </div>
+                            <div class="graph-actions">
+                                <span id="graph-stats-badge" class="graph-stats-pill">0 Nós • 0 Conexões</span>
+                                <button type="button" class="btn-graph-action" onclick="recenterGraph()" title="Centralizar visualização"><i class="fas fa-compress-arrows-alt"></i> Centralizar</button>
+                                <button type="button" class="btn-graph-action" id="btn-toggle-physics" onclick="toggleGraphPhysics()" title="Pausar/Ativar física"><i class="fas fa-pause"></i> Pausar Movimento</button>
+                            </div>
+                        </div>
+                        <div id="correlation-graph-container"></div>
+                        <div class="graph-hint-footer">
+                            <small><i class="fas fa-info-circle"></i> Arraste os nós para organizar livremente e use a rolagem do mouse para zoom. Passe o cursor sobre os nós para ver detalhes enriquecidos.</small>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Resultados com Suporte a Abas -->
+                    <div id="results-list-container">
+                    {% set ns = namespace(card_idx=0) %}
+                    {% for tipo, items in results.items() %}
+                        {% for ioc in items %}
+                        {% set ns.card_idx = ns.card_idx + 1 %}
+                        <div class="intel-ioc-card" id="card-{{ ns.card_idx }}" style="{% if ns.card_idx > 1 %}display: none;{% endif %}">
+                            
+                            <!-- Top Bar: IOC, Status, País, Abuse Score e Report to MISP -->
+                            <div class="intel-top-bar">
+                                <div class="intel-title-cluster">
+                                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                        <h3 class="intel-ioc-heading">{{ ioc.value }}</h3>
+                                        <span id="verdict-badge-{{ ns.card_idx }}" class="status-badge-safe">ANALISANDO</span>
+                                        <span id="geo-pill-{{ ns.card_idx }}" class="status-badge-country">🌐 Carregando...</span>
+                                    </div>
+                                    <div class="misp-comment-highlight">
+                                        <i class="fas fa-comment-dots"></i>
+                                        <span class="misp-comment-label">MISP:</span>
+                                        <span class="misp-comment-text">{{ ioc.desc if (ioc.desc and ioc.desc != 'Sem descrição' and ioc.desc != '') else 'Sem comentários registrados no MISP' }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="intel-top-right">
+                                    <div class="intel-score-unit">
+                                        <span class="intel-score-label">ABUSE SCORE</span>
+                                        <span id="abuse-score-digits-{{ ns.card_idx }}" class="intel-score-digits" style="color: #69f0ae;">--%</span>
+                                    </div>
+
+                                    <!-- Botão para Adicionar ao MISP -->
+                                    {% if ioc.is_unknown %}
+                                    <a id="btn-report-misp-{{ ns.card_idx }}" href="{{ '/add-ioc?value=' ~ ioc.value ~ '&type=' ~ ('ip-dst' if tipo == 'ips' else 'domain' if tipo == 'domains' else 'url' if tipo == 'urls' else 'md5') if (current_user and current_user.role in ['admin', 'analista']) else '/login?next=/add-ioc?value=' ~ ioc.value ~ '&type=' ~ ('ip-dst' if tipo == 'ips' else 'domain' if tipo == 'domains' else 'url' if tipo == 'urls' else 'md5') }}" class="btn-report-misp" style="display: none;">
+                                        <i class="fas fa-file-export"></i> REPORT TO MISP
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- 5 KPIs em Linha -->
+                            <div class="intel-kpi-row">
+                                <div class="kpi-card">
+                                    <div class="kpi-label"><i class="fas fa-database"></i> INTERNAL MISP</div>
+                                    <div class="kpi-value">
+                                        {% if ioc.is_unknown %}
+                                            <span style="color: #ff5252;"><i class="fas fa-exclamation-triangle"></i> UNKNOWN IOC</span>
+                                        {% else %}
+                                            <span style="color: #69f0ae;"><i class="fas fa-shield-alt"></i> CATALOGED</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="kpi-subtext">
+                                        {{ ioc.desc if (ioc.desc and ioc.desc != 'Sem descrição' and ioc.desc != '') else 'Sem comentários' }}
+                                    </div>
+                                </div>
+
+                                <div class="kpi-card">
+                                    <div class="kpi-label"><i class="fas fa-network-wired"></i> ISP / ASN</div>
+                                    <div class="kpi-value" id="kpi-isp-{{ ns.card_idx }}">--</div>
+                                    <div class="kpi-subtext" id="kpi-asn-{{ ns.card_idx }}">--</div>
+                                </div>
+
+                                <div class="kpi-card">
+                                    <div class="kpi-label"><i class="fas fa-globe"></i> DOMAIN</div>
+                                    <div class="kpi-value" id="kpi-domain-{{ ns.card_idx }}">--</div>
+                                    <div class="kpi-subtext">Reverse DNS / Host</div>
+                                </div>
+
+                                <div class="kpi-card">
+                                    <div class="kpi-label"><i class="fas fa-tag"></i> USAGE TYPE</div>
+                                    <div class="kpi-value" id="kpi-usage-{{ ns.card_idx }}">--</div>
+                                    <div class="kpi-subtext">Classificação de Conexão</div>
+                                </div>
+
+                                <div class="kpi-card">
+                                    <div class="kpi-label"><i class="fas fa-flag"></i> TOTAL REPORTS</div>
+                                    <div class="kpi-value" id="kpi-reports-{{ ns.card_idx }}">0</div>
+                                    <div class="kpi-subtext">Denúncias no AbuseIPDB</div>
+                                </div>
+                            </div>
+
+                            <!-- AI Threat Assessment Box -->
+                            <div class="ai-analyst-card" id="ai-box-{{ ns.card_idx }}" style="margin-top: 15px; margin-bottom: 20px;">
+                                <div class="ai-header">
+                                    <div class="ai-title">
+                                        <i class="fas fa-robot"></i> AI THREAT ASSESSMENT
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span class="ai-model-tag" id="ai-model-tag-{{ ns.card_idx }}">Carregando IA...</span>
+                                        <button class="btn-tool" onclick="runAiAnalysis('{{ ioc.value }}', '{{ tipo }}', {{ ns.card_idx }})" style="padding: 4px 10px; font-size: 11px;">
+                                            <i class="fas fa-redo"></i> Reanalisar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="ai-thinking-btn-{{ ns.card_idx }}" style="display: none;">
+                                    <div class="ai-thinking-toggle" onclick="toggleThinking({{ ns.card_idx }})">
+                                        <i class="fas fa-brain"></i> Ver Raciocínio Interno (DeepSeek-R1 CoT)
+                                    </div>
+                                    <div class="ai-thinking-box" id="ai-thinking-box-{{ ns.card_idx }}"></div>
+                                </div>
+
+                                <div class="ai-content" id="ai-output-{{ ns.card_idx }}">
+                                    <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> IA processando parecer executivo de segurança...</span>
+                                </div>
+                            </div>
+
+                            <!-- Grade 3 Colunas: VirusTotal & Malware Engines, MITRE & Geo, AbuseIPDB Logs -->
+                            <div class="intel-grid-3col">
+                                <!-- Coluna 1: VirusTotal & Malware Engines -->
+                                <div class="intel-panel">
+                                    <div class="intel-panel-header">
+                                        <span><i class="fas fa-shield-alt"></i> VIRUSTOTAL</span>
+                                        <a href="https://www.virustotal.com/gui/search/{{ ioc.value }}" target="_blank" style="color: var(--text-muted);"><i class="fas fa-external-link-alt"></i></a>
+                                    </div>
+
+                                    <div class="vt-gauge-box">
+                                        <div id="vt-circle-{{ ns.card_idx }}" class="vt-gauge-circle gauge-clean">
+                                            <span id="vt-mal-num-{{ ns.card_idx }}" class="num">0</span>
+                                            <span class="sub">DETECTIONS</span>
+                                        </div>
+                                        <span id="vt-rep-{{ ns.card_idx }}" style="font-size: 11px; color: var(--text-muted);">Reputação: 0</span>
+                                    </div>
+
+                                    <div class="malware-engines-box">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <span style="font-size: 11px; font-weight: 700; color: #ff5252;"><i class="fas fa-bug"></i> MALWARE ENGINES</span>
+                                            <span class="cve-pill" style="font-size: 9px;">POSITIVES ONLY</span>
+                                        </div>
+                                        <div id="vt-engines-list-{{ ns.card_idx }}" class="malware-engine-list">
+                                            <span style="color: var(--text-muted); font-size: 11px;"><i class="fas fa-spinner fa-spin"></i> Consultando motores...</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Coluna 2: Shodan Ports, MITRE & Connectivity / Geo -->
+                                <div class="intel-panel">
+                                    <div class="intel-panel-header">
+                                        <span><i class="fas fa-network-wired"></i> SHODAN PORTS</span>
+                                        {% if tipo == 'ips' %}
+                                        <a href="https://www.shodan.io/host/{{ ioc.value }}" target="_blank" style="color: var(--text-muted);"><i class="fas fa-external-link-alt"></i></a>
+                                        {% endif %}
+                                    </div>
+                                    <div id="shodan-ports-box-{{ ns.card_idx }}" style="margin-bottom: 15px;">
+                                        <span style="font-size: 11px; color: var(--text-muted); font-style: italic;">No open ports identified.</span>
+                                    </div>
+
+                                    <div class="intel-panel-header">
+                                        <span><i class="fas fa-crosshairs"></i> MITRE ATT&CK TACTICS</span>
+                                    </div>
+                                    <div id="mitre-container-{{ ns.card_idx }}" class="mitre-tags-container" style="margin-bottom: 15px;">
+                                        <span style="color: var(--text-muted); font-size: 11px;">Mapeando táticas...</span>
+                                    </div>
+
+                                    <div class="intel-panel-header" style="margin-top: 15px;">
+                                        <span><i class="fas fa-map-marked-alt"></i> CONNECTIVITY & GEO</span>
+                                    </div>
+                                    <div id="traffic-type-{{ ns.card_idx }}" class="traffic-type-badge">
+                                        TRAFFIC TYPE: DESCONHECIDO
+                                    </div>
+                                    <div id="map-{{ ns.card_idx }}" class="mini-map" style="height: 290px;"></div>
+                                    <div id="geo-location-label-{{ ns.card_idx }}" style="font-size: 12px; color: var(--text-muted); margin-top: 6px;"></div>
+                                </div>
+
+                                <!-- Coluna 3: AbuseIPDB Logs & AlienVault OTX Pulses -->
+                                <div class="intel-panel">
+                                    <div class="intel-panel-header">
+                                        <span><i class="fas fa-terminal"></i> ABUSEIPDB LOGS (6 MONTHS)</span>
+                                        {% if tipo == 'ips' %}
+                                        <a href="https://www.abuseipdb.com/check/{{ ioc.value }}" target="_blank" style="color: var(--text-muted);"><i class="fas fa-external-link-alt"></i></a>
+                                        {% endif %}
+                                    </div>
+                                    <div id="abuse-logs-{{ ns.card_idx }}" class="terminal-log-card" style="max-height: 180px;">
+                                        <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Consultando histórico de denúncias...</span>
+                                    </div>
+
+                                    <div class="intel-panel-header" style="margin-top: 15px;">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <span><i class="fas fa-shield-virus"></i> ALIENVAULT OTX</span>
+                                            <span id="otx-pulse-count-{{ ns.card_idx }}" class="cve-pill" style="font-size: 10px; background: rgba(156, 39, 176, 0.2); border-color: #ba68c8; color: #e1bee7;">0 Pulses</span>
+                                        </div>
+                                        <a href="https://otx.alienvault.com/indicator/{{ 'ip' if tipo == 'ips' else 'domain' if tipo == 'domains' else 'file' }}/{{ ioc.value }}" target="_blank" style="color: var(--text-muted);"><i class="fas fa-external-link-alt"></i></a>
+                                    </div>
+                                    <div id="otx-pulses-list-{{ ns.card_idx }}" class="otx-pulses-container">
+                                        <span style="color: var(--text-muted); font-size: 11px;"><i class="fas fa-spinner fa-spin"></i> Consultando OTX Pulses...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Dossiê Profundo (Deep Recon) & Comentários do VirusTotal -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; margin-top: 15px;">
+                                <!-- Dossiê Profundo: SSL, TOR, RDAP/PTR, Web Mentions -->
+                                <div class="deep-recon-card">
+                                    <div class="vt-comments-header">
+                                        <span><i class="fas fa-microscope" style="color: #58a6ff;"></i> DOSSIÊ PROFUNDO (DEEP RECON)</span>
+                                        <span class="cve-pill" style="font-size: 10px; background: rgba(88,166,255,0.15); color: #58a6ff;">Ativo & Passivo</span>
+                                    </div>
+                                    <div class="deep-recon-grid">
+                                        <div class="deep-recon-col">
+                                            <h4><i class="fas fa-lock"></i> Inspeção SSL / TLS & Banner</h4>
+                                            <div class="deep-recon-val" id="deep-ssl-val-{{ ns.card_idx }}">
+                                                <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Sondando portas 443 / 80...</span>
+                                            </div>
+                                        </div>
+                                        <div class="deep-recon-col">
+                                            <h4><i class="fas fa-user-secret"></i> Rede Tor / Anonimização</h4>
+                                            <div class="deep-recon-val" id="deep-tor-val-{{ ns.card_idx }}">
+                                                <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Verificando nós Tor...</span>
+                                            </div>
+                                        </div>
+                                        <div class="deep-recon-col">
+                                            <h4><i class="fas fa-network-wired"></i> DNS Reverso (PTR) & RDAP</h4>
+                                            <div class="deep-recon-val" id="deep-dns-val-{{ ns.card_idx }}">
+                                                <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Consultando registros...</span>
+                                            </div>
+                                        </div>
+                                        <div class="deep-recon-col">
+                                            <h4><i class="fas fa-globe"></i> Menções CTI na Web Aberta</h4>
+                                            <div class="deep-recon-val" id="deep-web-val-{{ ns.card_idx }}">
+                                                <span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Buscando menções...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Comentários da Comunidade VirusTotal -->
+                                <div class="vt-comments-card">
+                                    <div class="vt-comments-header">
+                                        <span><i class="fas fa-comments" style="color: #58a6ff;"></i> COMENTÁRIOS DA COMUNIDADE (VIRUSTOTAL)</span>
+                                        <span id="vt-comments-count-{{ ns.card_idx }}" class="cve-pill" style="font-size: 10px;">0 Notas</span>
+                                    </div>
+                                    <div id="vt-comments-list-{{ ns.card_idx }}" style="max-height: 220px; overflow-y: auto;">
+                                        <span style="color: var(--text-muted); font-size: 11px;"><i class="fas fa-spinner fa-spin"></i> Carregando comentários de analistas...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Links Externos de Suporte -->
+                            <div class="card-actions" style="margin-top: 20px;">
+                                <a href="https://www.virustotal.com/gui/search/{{ ioc.value }}" target="_blank" class="btn-tool vt">
+                                    <i class="fas fa-virus"></i> VirusTotal
+                                </a>
+                                
+                                {% if tipo == 'ips' %}
+                                <a href="https://www.abuseipdb.com/check/{{ ioc.value }}" target="_blank" class="btn-tool abuse">
+                                    <i class="fas fa-ban"></i> AbuseIPDB
+                                </a>
+                                {% endif %}
+
+                                <a href="https://otx.alienvault.com/indicator/{{ 'ip' if tipo == 'ips' else 'domain' if tipo == 'domains' else 'file' }}/{{ ioc.value }}" target="_blank" class="btn-tool otx">
+                                    <i class="fas fa-bullseye"></i> AlienVault
+                                </a>
+                            </div>
+
+                        </div>
+                        {% endfor %}
+                    {% endfor %}
+                    </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Função utilitária global para prevenir XSS contra feeds de terceiros
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(str);
+            return div.innerHTML;
+        }
+
+        const searchResults = {{ results | tojson if results else '{}' }};
+        const activeQuery = "{{ query if query else '' }}";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            let cardIdx = 1;
+            for (const [tipo, items] of Object.entries(searchResults)) {
+                items.forEach(ioc => {
+                    const thisIdx = cardIdx;
+                    loadEnrichment(ioc.value, tipo, ioc.desc, thisIdx, () => {
+                        loadAiAnalysis(ioc.value, tipo, ioc, thisIdx);
+                    });
+                    cardIdx++;
+                });
+            }
+        });
+
+        // Carrega dados de Enriquecimento (VT, Abuse, GeoIP, MITRE, Shodan, OTX)
+        function loadEnrichment(value, type, desc, idx, onComplete) {
+            fetch(`/api/enrich?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}&comment=${encodeURIComponent(desc)}`)
+                .then(r => r.json())
+                .then(data => {
+                    window.enrichmentCache = window.enrichmentCache || {};
+                    window.enrichmentCache[value] = data;
+
+                    let isMalicious = false;
+
+                    // 1. MITRE ATT&CK
+                    const mitreContainer = document.getElementById(`mitre-container-${idx}`);
+                    if (mitreContainer && data.mitre_tags && data.mitre_tags.length > 0) {
+                        mitreContainer.innerHTML = data.mitre_tags.map(t => 
+                            `<span class="mitre-badge" title="${t.tactic}: ${t.name}">
+                                <i class="fas fa-crosshairs"></i> ${t.id} - ${t.tactic}
+                             </span>`
+                        ).join('');
+                    }
+
+                    // 2. VirusTotal & Malware Engines
+                    const vtCircle = document.getElementById(`vt-circle-${idx}`);
+                    const vtNum = document.getElementById(`vt-mal-num-${idx}`);
+                    const vtRep = document.getElementById(`vt-rep-${idx}`);
+                    const vtEngines = document.getElementById(`vt-engines-list-${idx}`);
+
+                    if (data.vt_data && !data.vt_data.error && !data.vt_data.not_found) {
+                        const mal = data.vt_data.malicious || 0;
+                        if (mal > 0) isMalicious = true;
+
+                        if (vtNum) vtNum.innerText = mal;
+                        if (vtRep) vtRep.innerText = `Reputação: ${data.vt_data.reputation || 0}`;
+                        if (vtCircle) {
+                            vtCircle.className = 'vt-gauge-circle ' + (mal > 0 ? 'gauge-malicious' : (data.vt_data.suspicious > 0 ? 'gauge-suspicious' : 'gauge-clean'));
+                        }
+
+                        if (vtEngines) {
+                            const engines = data.vt_data.malware_engines || [];
+                            if (engines.length > 0) {
+                                vtEngines.innerHTML = engines.map(e => `
+                                    <div class="engine-item">
+                                        <span class="engine-name">${escapeHtml(e.engine)}</span>
+                                        <span class="engine-verdict">${escapeHtml(e.result)}</span>
+                                    </div>
+                                `).join('');
+                            } else {
+                                vtEngines.innerHTML = `<span style="color: #69f0ae; font-size: 11px;"><i class="fas fa-check-circle"></i> Clean record. No malware engines detected.</span>`;
+                            }
+                        }
+                    } else if (vtEngines) {
+                        vtEngines.innerHTML = `<span style="color: var(--text-muted); font-size: 11px;">Não catalogado no VirusTotal</span>`;
+                    }
+
+                    // 3. AbuseIPDB & Logs
+                    const abuseScoreDigits = document.getElementById(`abuse-score-digits-${idx}`);
+                    const kpiReports = document.getElementById(`kpi-reports-${idx}`);
+                    const kpiUsage = document.getElementById(`kpi-usage-${idx}`);
+                    const trafficType = document.getElementById(`traffic-type-${idx}`);
+                    const kpiDomain = document.getElementById(`kpi-domain-${idx}`);
+                    const abuseLogs = document.getElementById(`abuse-logs-${idx}`);
+
+                    if (data.abuse_data && !data.abuse_data.error) {
+                        const score = data.abuse_data.abuse_score || 0;
+                        if (score > 15) isMalicious = true;
+
+                        if (abuseScoreDigits) {
+                            abuseScoreDigits.innerText = `${score}%`;
+                            abuseScoreDigits.style.color = score > 50 ? '#ff5252' : (score > 15 ? '#ffab40' : '#69f0ae');
+                        }
+                        if (kpiReports) kpiReports.innerText = data.abuse_data.total_reports || 0;
+                        if (kpiUsage) kpiUsage.innerText = data.abuse_data.usage_type || 'N/A';
+                        if (trafficType) trafficType.innerText = `TRAFFIC TYPE: ${(data.abuse_data.usage_type || 'N/A').toUpperCase()}`;
+                        if (kpiDomain) kpiDomain.innerText = data.abuse_data.domain || 'Nenhum';
+
+                        if (abuseLogs) {
+                            const reports = data.abuse_data.reports || [];
+                            if (reports.length > 0) {
+                                abuseLogs.innerHTML = reports.map(r => `
+                                    <div class="terminal-report-entry">
+                                        <div class="terminal-report-date">> [${escapeHtml(r.reported_at)}] ${r.reporter_country ? '('+escapeHtml(r.reporter_country)+')' : ''}</div>
+                                        <div class="terminal-report-text">${escapeHtml(r.comment)}</div>
+                                    </div>
+                                `).join('');
+                            } else {
+                                abuseLogs.innerHTML = `<div style="color: #69f0ae;">> Clean record. No abuse reports filed in the last 6 months.</div>`;
+                            }
+                        }
+                    } else if (abuseLogs) {
+                        abuseLogs.innerHTML = `<span style="color: var(--text-muted);">Sem histórico de denúncias para este indicador.</span>`;
+                    }
+
+                    // 4. Geolocation & Mini Mapa
+                    const countryPill = document.getElementById(`geo-pill-${idx}`);
+                    const kpiIsp = document.getElementById(`kpi-isp-${idx}`);
+                    const kpiAsn = document.getElementById(`kpi-asn-${idx}`);
+                    const geoLocLabel = document.getElementById(`geo-location-label-${idx}`);
+
+                    if (data.geo_data) {
+                        const g = data.geo_data;
+                        if (countryPill) countryPill.innerHTML = `${g.flag || '🌐'} ${g.country || 'Desconhecido'}`;
+                        if (kpiIsp) kpiIsp.innerText = g.isp || g.org || 'N/A';
+                        if (kpiAsn) kpiAsn.innerText = g.as || 'N/A';
+                        if (geoLocLabel) geoLocLabel.innerText = `${g.city || ''}, ${g.country || ''}`;
+
+                        if (g.lat && g.lon) {
+                            setTimeout(() => {
+                                const mapElem = document.getElementById(`map-${idx}`);
+                                if (mapElem) {
+                                    const map = L.map(`map-${idx}`, {zoomControl: true, attributionControl: false}).setView([g.lat, g.lon], 6);
+                                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                        maxZoom: 18,
+                                        className: 'dark-map-tiles'
+                                    }).addTo(map);
+                                    L.circleMarker([g.lat, g.lon], {
+                                        color: '#2196F3',
+                                        fillColor: '#2196F3',
+                                        fillOpacity: 0.8,
+                                        radius: 7
+                                    }).addTo(map);
+                                }
+                            }, 200);
+                        }
+                    } else {
+                        if (countryPill) countryPill.innerHTML = '🌐 Privado / Local';
+                    }
+
+                    // 4.5 Shodan InternetDB Ports
+                    const shodanBox = document.getElementById(`shodan-ports-box-${idx}`);
+                    if (shodanBox) {
+                        const ports = (data.shodan_data && data.shodan_data.ports) || [];
+                        if (ports.length > 0) {
+                            let html = `<div class="shodan-ports-list">`;
+                            html += ports.map(p => `<span class="port-badge" title="Porta ${escapeHtml(p)} aberta"><i class="fas fa-plug"></i> ${escapeHtml(p)}</span>`).join('');
+                            html += `</div>`;
+                            if (data.shodan_data.vulns && data.shodan_data.vulns.length > 0) {
+                                html += `<div style="margin-top: 6px;">
+                                    <span style="font-size: 10px; color: #ff5252; font-weight: bold;"><i class="fas fa-radiation"></i> CVEs:</span>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px;">
+                                        ${data.shodan_data.vulns.map(v => `<span class="cve-pill">${escapeHtml(v)}</span>`).join('')}
+                                    </div>
+                                </div>`;
+                            }
+                            shodanBox.innerHTML = html;
+                        } else {
+                            shodanBox.innerHTML = `<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">No open ports identified.</span>`;
+                        }
+                    }
+
+                    // 4.8 AlienVault OTX Pulses
+                    const otxCountBadge = document.getElementById(`otx-pulse-count-${idx}`);
+                    const otxList = document.getElementById(`otx-pulses-list-${idx}`);
+
+                    if (data.otx_data) {
+                        const pCount = data.otx_data.pulse_count || 0;
+                        if (pCount > 1) isMalicious = true;
+
+                        if (otxCountBadge) {
+                            otxCountBadge.innerText = `${pCount} Pulses`;
+                            if (pCount > 0) {
+                                otxCountBadge.style.background = 'rgba(244, 67, 54, 0.2)';
+                                otxCountBadge.style.borderColor = '#ff5252';
+                                otxCountBadge.style.color = '#ff8a80';
+                            }
+                        }
+
+                        if (otxList) {
+                            const pulses = data.otx_data.pulses || [];
+                            if (pulses.length > 0) {
+                                otxList.innerHTML = pulses.map(p => `
+                                    <div class="otx-pulse-item">
+                                        <div class="otx-pulse-title" title="${escapeHtml(p.name)}">
+                                            <i class="fas fa-bolt" style="color: #ba68c8; margin-right: 4px;"></i> ${escapeHtml(p.name)}
+                                        </div>
+                                        ${p.description ? `
+                                            <div class="otx-pulse-desc" style="font-size: 11px; color: #8b949e; margin: 5px 0; line-height: 1.35;">
+                                                <i class="fas fa-quote-left" style="color: #ba68c8; font-size: 9px; opacity: 0.7; margin-right: 4px;"></i>${escapeHtml(p.description)}
+                                            </div>
+                                        ` : ''}
+                                        <div class="otx-pulse-meta">
+                                            <span><i class="fas fa-user-shield"></i> ${escapeHtml(p.author)}</span>
+                                            ${p.created ? `<span><i class="fas fa-calendar-alt"></i> ${escapeHtml(p.created)}</span>` : ''}
+                                        </div>
+                                        ${p.tags && p.tags.length > 0 ? `
+                                            <div class="otx-pulse-tags">
+                                                ${p.tags.map(t => `<span class="otx-tag">#${escapeHtml(t)}</span>`).join('')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('');
+                            } else {
+                                otxList.innerHTML = `<span style="color: #69f0ae; font-size: 11px;"><i class="fas fa-check-circle"></i> Clean record. No threat pulses found in AlienVault OTX.</span>`;
+                            }
+                        }
+                    } else if (otxList) {
+                        otxList.innerHTML = `<span style="color: var(--text-muted); font-size: 11px;">Sem dados do AlienVault OTX.</span>`;
+                    }
+
+                    // 4.9 Deep Recon (Dossiê Profundo: SSL, TOR, RDAP/PTR, Web Mentions)
+                    const deep = data.deep_recon || (data.geo_data && data.geo_data.deep_recon);
+                    
+                    const deepSsl = document.getElementById(`deep-ssl-val-${idx}`);
+                    if (deepSsl) {
+                        if (deep && deep.ssl_banner) {
+                            const sb = deep.ssl_banner;
+                            let html = '';
+                            if (sb.has_ssl && sb.ssl_cert) {
+                                const cert = sb.ssl_cert;
+                                html += `<div style="margin-bottom: 4px;">
+                                    <span class="cve-pill" style="font-size: 9px; ${cert.is_self_signed ? 'background: rgba(255,82,82,0.2); color: #ff5252; border-color: #ff5252;' : 'background: rgba(105,240,174,0.15); color: #69f0ae; border-color: #69f0ae;'}">
+                                        ${cert.is_self_signed ? '⚠️ AUTOASSINADO (SELF-SIGNED)' : '✓ CERTIFICADO VÁLIDO'}
+                                    </span>
+                                </div>`;
+                                html += `<div style="color: #c9d1d9; font-size: 11px;"><strong>Emissor:</strong> ${escapeHtml(cert.issuer || 'N/A')}</div>`;
+                                html += `<div style="color: #8b949e; font-size: 10px;"><strong>Expira em:</strong> ${cert.days_until_expiry !== undefined ? cert.days_until_expiry + ' dias' : 'N/A'}</div>`;
+                            } else {
+                                html += `<div style="color: var(--text-muted); font-size: 11px;">Porta 443 fechada / Sem certificado SSL.</div>`;
+                            }
+                            if (sb.http_banner) {
+                                html += `<div style="margin-top: 4px; font-size: 10px; color: #58a6ff; font-family: monospace;">Banner: ${escapeHtml(sb.http_banner)}</div>`;
+                            }
+                            deepSsl.innerHTML = html;
+                        } else {
+                            deepSsl.innerHTML = `<span style="color: var(--text-muted); font-size: 11px;">Não aplicável ou indisponível.</span>`;
+                        }
+                    }
+
+                    const deepTor = document.getElementById(`deep-tor-val-${idx}`);
+                    if (deepTor) {
+                        if (deep && deep.tor_data) {
+                            const tor = deep.tor_data;
+                            if (tor.is_tor_exit_node) {
+                                isMalicious = true;
+                                deepTor.innerHTML = `<span style="color: #ff5252; font-weight: bold; font-size: 11px;"><i class="fas fa-exclamation-triangle"></i> NÓ DE SAÍDA TOR DETECTADO</span><div style="font-size: 10px; color: #ff8a80; margin-top: 2px;">Tráfego anonimizado de alto risco.</div>`;
+                            } else {
+                                deepTor.innerHTML = `<span style="color: #69f0ae; font-size: 11px;"><i class="fas fa-shield-alt"></i> Não catalogado como Nó Tor.</span>`;
+                            }
+                        } else {
+                            deepTor.innerHTML = `<span style="color: var(--text-muted); font-size: 11px;">Não aplicável para este indicador.</span>`;
+                        }
+                    }
+
+                    const deepDns = document.getElementById(`deep-dns-val-${idx}`);
+                    if (deepDns) {
+                        if (deep && deep.dns_rdap) {
+                            const rd = deep.dns_rdap;
+                            let html = `<div style="font-size: 11px; color: #c9d1d9; word-break: break-all;"><strong>PTR:</strong> ${escapeHtml(rd.reverse_dns || 'Sem registro PTR')}</div>`;
+                            if (rd.rdap) {
+                                html += `<div style="font-size: 10px; color: #8b949e; margin-top: 2px;"><strong>Rede:</strong> ${escapeHtml(rd.rdap.network_name || 'N/A')} (${escapeHtml(rd.rdap.country || '')})</div>`;
+                                if (rd.rdap.org) html += `<div style="font-size: 10px; color: #8b949e;"><strong>Org:</strong> ${escapeHtml(rd.rdap.org)}</div>`;
+                            }
+                            deepDns.innerHTML = html;
+                        } else {
+                            deepDns.innerHTML = `<span style="color: var(--text-muted); font-size: 11px;">Sem dados de DNS reverso.</span>`;
+                        }
+                    }
+
+                    const deepWeb = document.getElementById(`deep-web-val-${idx}`);
+                    if (deepWeb) {
+                        if (deep && deep.web_mentions && deep.web_mentions.length > 0) {
+                            deepWeb.innerHTML = deep.web_mentions.map(m => `
+                                <div style="font-size: 10px; color: #8b949e; border-left: 2px solid #58a6ff; padding-left: 6px; margin-bottom: 4px; line-height: 1.3;">
+                                    ${escapeHtml(m)}
+                                </div>
+                            `).join('');
+                        } else {
+                            deepWeb.innerHTML = `<span style="color: #69f0ae; font-size: 11px;"><i class="fas fa-check-circle"></i> Nenhuma menção pública a ameaças encontrada.</span>`;
+                        }
+                    }
+
+                    // 4.10 Comentários da Comunidade VirusTotal
+                    const vtCommentsList = document.getElementById(`vt-comments-list-${idx}`);
+                    const vtCommentsCount = document.getElementById(`vt-comments-count-${idx}`);
+                    const comments = (data.vt_data && data.vt_data.comments) || [];
+
+                    if (vtCommentsCount) {
+                        vtCommentsCount.innerText = `${comments.length} Notas`;
+                        if (comments.length > 0) {
+                            vtCommentsCount.style.background = 'rgba(88, 166, 255, 0.2)';
+                            vtCommentsCount.style.color = '#58a6ff';
+                            vtCommentsCount.style.borderColor = '#58a6ff';
+                        }
+                    }
+
+                    if (vtCommentsList) {
+                        if (comments.length > 0) {
+                            vtCommentsList.innerHTML = comments.map(c => `
+                                <div class="vt-comment-item">
+                                    <div class="vt-comment-meta">
+                                        <span><i class="fas fa-user-circle"></i> ${escapeHtml(c.author || 'Analista')}</span>
+                                        ${c.date ? `<span><i class="fas fa-calendar-alt"></i> ${escapeHtml(c.date)}</span>` : ''}
+                                        ${c.votes ? `<span style="color: #ffab40;"><i class="fas fa-thumbs-up"></i> +${escapeHtml(c.votes)}</span>` : ''}
+                                    </div>
+                                    <div class="vt-comment-text">${escapeHtml(c.text)}</div>
+                                    ${c.tags && c.tags.length > 0 ? `
+                                        <div class="vt-comment-tags">
+                                            ${c.tags.map(t => `<span class="vt-comment-tag">#${escapeHtml(t)}</span>`).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('');
+                        } else {
+                            vtCommentsList.innerHTML = `<span style="color: var(--text-muted); font-size: 11px; font-style: italic;"><i class="fas fa-info-circle"></i> Nenhum comentário postado por pesquisadores da comunidade no VirusTotal.</span>`;
+                        }
+                    }
+
+                    // 5. Atualiza Veredito Visual e Botão REPORT TO MISP
+                    const verdictBadge = document.getElementById(`verdict-badge-${idx}`);
+                    const reportBtn = document.getElementById(`btn-report-misp-${idx}`);
+                    const tabDot = document.getElementById(`tab-dot-${idx}`);
+
+                    if (isMalicious) {
+                        if (verdictBadge) {
+                            verdictBadge.className = 'status-badge-malicious';
+                            verdictBadge.innerText = 'MALICIOUS';
+                        }
+                        if (tabDot) {
+                            tabDot.className = 'ioc-tab-dot malicious';
+                        }
+                        if (reportBtn) {
+                            reportBtn.style.display = 'inline-flex';
+                            let iocMispType = (type === 'ips') ? 'ip-dst' : (type === 'domains') ? 'domain' : (type === 'urls') ? 'url' : 'md5';
+                            let threatSummary = `Detectado pelo Cortex TIP.`;
+                            if (data.vt_data && data.vt_data.malicious > 0) {
+                                threatSummary += ` VirusTotal: ${data.vt_data.malicious} detecções.`;
+                            }
+                            if (data.abuse_data && data.abuse_data.abuse_score > 0) {
+                                threatSummary += ` AbuseIP Score: ${data.abuse_data.abuse_score}%.`;
+                                if (data.abuse_data.reports && data.abuse_data.reports.length > 0) {
+                                    threatSummary += ` Obs: ${data.abuse_data.reports[0].comment.substring(0, 100)}`;
+                                }
+                            }
+                            const targetAddIoc = `/add-ioc?value=${encodeURIComponent(value)}&type=${encodeURIComponent(iocMispType)}&comment=${encodeURIComponent(threatSummary)}`;
+                            {% if current_user and current_user.role in ['admin', 'analista'] %}
+                            reportBtn.href = targetAddIoc;
+                            {% else %}
+                            reportBtn.href = `/login?next=${encodeURIComponent(targetAddIoc)}`;
+                            {% endif %}
+                        }
+                    } else {
+                        if (verdictBadge) {
+                            verdictBadge.className = 'status-badge-safe';
+                            verdictBadge.innerText = 'SAFE';
+                        }
+                        if (tabDot) {
+                            tabDot.className = 'ioc-tab-dot safe';
+                        }
+                        if (reportBtn) {
+                            reportBtn.style.display = 'none';
+                        }
+                    }
+
+                    // Se o Grafo de Correlação estiver aberto, atualiza com os novos dados
+                    const gWrap = document.getElementById('correlation-graph-wrapper');
+                    if (gWrap && gWrap.style.display !== 'none') {
+                        renderCorrelationGraph();
+                    }
+
+                    if (typeof onComplete === 'function') {
+                        onComplete();
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro no enriquecimento:", err);
+                    if (typeof onComplete === 'function') {
+                        onComplete();
+                    }
+                });
+        }
+
+        // Carrega Parecer da IA
+        function loadAiAnalysis(value, type, iocObj, idx) {
+            runAiAnalysis(value, type, idx, iocObj);
+        }
+
+        function runAiAnalysis(value, type, idx, iocObj) {
+            const outElem = document.getElementById(`ai-output-${idx}`);
+            const tagElem = document.getElementById(`ai-model-tag-${idx}`);
+            const thinkBtn = document.getElementById(`ai-thinking-btn-${idx}`);
+            const thinkBox = document.getElementById(`ai-thinking-box-${idx}`);
+
+            {% if not current_user %}
+            outElem.innerHTML = `<span style="color: #ffab40;"><i class="fas fa-lock" style="margin-right: 6px;"></i> É necessário estar logado para realizar a análise com Inteligência Artificial. <a href="/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}" style="color: #58a6ff; text-decoration: underline; margin-left: 8px; font-weight: 500;"><i class="fas fa-sign-in-alt"></i> Fazer Login</a></span>`;
+            if (tagElem) {
+                tagElem.innerText = 'Requer Login';
+                tagElem.style.background = 'rgba(255, 171, 64, 0.15)';
+                tagElem.style.borderColor = '#ffab40';
+                tagElem.style.color = '#ffab40';
+            }
+            return;
+            {% endif %}
+
+            outElem.innerHTML = `<span style="color: var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> IA gerando parecer de segurança...</span>`;
+
+            fetch('/api/ai-analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    ioc_value: value,
+                    ioc_type: type,
+                    misp_data: iocObj || {}
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    tagElem.innerText = `${data.provider} (${data.model_used})`;
+                    const rawHtml = marked.parse(data.analysis || 'Sem análise gerada.');
+                    outElem.innerHTML = window.DOMPurify ? DOMPurify.sanitize(rawHtml) : rawHtml;
+
+                    if (data.thinking) {
+                        thinkBox.innerText = data.thinking;
+                        thinkBtn.style.display = 'block';
+                    } else {
+                        thinkBtn.style.display = 'none';
+                    }
+                } else {
+                    outElem.innerHTML = `<span style="color: #ff5252;"><i class="fas fa-exclamation-triangle"></i> Falha na análise de IA: ${escapeHtml(data.error || 'Erro desconhecido')}</span>`;
+                    tagElem.innerText = 'Falha';
+                }
+            })
+            .catch(e => {
+                outElem.innerHTML = `<span style="color: #ff5252;"><i class="fas fa-exclamation-triangle"></i> Erro de rede: ${escapeHtml(e)}</span>`;
+            });
+        }
+
+        function toggleThinking(idx) {
+            const box = document.getElementById(`ai-thinking-box-${idx}`);
+            box.style.display = box.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Navegação de Abas de IOCs (Estilo Navegador)
+        function switchIocTab(targetIdx) {
+            // Desativa todas as abas
+            document.querySelectorAll('.ioc-tab').forEach(t => t.classList.remove('active'));
+            const activeTab = document.getElementById(`tab-btn-${targetIdx}`);
+            if (activeTab) activeTab.classList.add('active');
+
+            // Esconde todos os cards de IOC e exibe apenas o card correspondente
+            document.querySelectorAll('.intel-ioc-card').forEach(c => c.style.display = 'none');
+            const activeCard = document.getElementById(`card-${targetIdx}`);
+            if (activeCard) activeCard.style.display = 'block';
+
+            // Se o Grafo de Correlação estiver aberto, recentraliza
+            const gWrap = document.getElementById('correlation-graph-wrapper');
+            if (gWrap && gWrap.style.display !== 'none') {
+                recenterGraph();
+            }
+        }
+
+        function closeIocTab(event, targetIdx) {
+            if (event) event.stopPropagation();
+            const tabBtn = document.getElementById(`tab-btn-${targetIdx}`);
+            const card = document.getElementById(`card-${targetIdx}`);
+            const wasActive = tabBtn ? tabBtn.classList.contains('active') : false;
+
+            if (tabBtn) tabBtn.remove();
+            if (card) card.remove();
+
+            const remainingTabs = document.querySelectorAll('.ioc-tab');
+            if (remainingTabs.length > 0) {
+                if (wasActive) {
+                    const firstTab = remainingTabs[0];
+                    const firstId = firstTab.id.replace('tab-btn-', '');
+                    switchIocTab(firstId);
+                }
+            } else {
+                const tabsWrapper = document.getElementById('ioc-tabs-wrapper');
+                if (tabsWrapper) tabsWrapper.style.display = 'none';
+                const listCont = document.getElementById('results-list-container');
+                if (listCont) {
+                    listCont.innerHTML = `
+                        <div class="alert alert-info" style="margin-top: 20px; background: rgba(88,166,255,0.1); border: 1px solid #388bfd; border-radius: 8px; padding: 16px; color: #58a6ff;">
+                            <i class="fas fa-info-circle" style="margin-right: 8px;"></i> Todas as abas de IOCs foram fechadas. Realize uma nova busca acima ou clique no botão + para adicionar outro indicador.
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function promptAddIoc() {
+            const newIoc = prompt("Digite o novo IP, Domínio ou Hash para pesquisar em nova aba:");
+            if (!newIoc || !newIoc.trim()) return;
+            const clean = newIoc.trim();
+            const currentQuery = activeQuery || "";
+            const combined = currentQuery ? (currentQuery + ", " + clean) : clean;
+            window.location.href = `/search?query=${encodeURIComponent(combined)}`;
+        }
+
+        // Alternador de Visualização: Lista vs Grafo
+        let networkInstance = null;
+        let isPhysicsPaused = false;
+
+        function setViewMode(mode) {
+            const listBtn = document.getElementById('btn-view-list');
+            const graphBtn = document.getElementById('btn-view-graph');
+            const listCont = document.getElementById('results-list-container');
+            const graphWrapper = document.getElementById('correlation-graph-wrapper');
+
+            if (mode === 'graph') {
+                listBtn.classList.remove('active');
+                graphBtn.classList.add('active');
+                listCont.style.display = 'none';
+                graphWrapper.style.display = 'block';
+                setTimeout(() => {
+                    renderCorrelationGraph();
+                }, 50);
+            } else {
+                graphBtn.classList.remove('active');
+                listBtn.classList.add('active');
+                graphWrapper.style.display = 'none';
+                listCont.style.display = 'block';
+            }
+        }
+
+        function toggleGraphPhysics() {
+            if (!networkInstance) return;
+            isPhysicsPaused = !isPhysicsPaused;
+            networkInstance.setOptions({ physics: { enabled: !isPhysicsPaused } });
+            const btn = document.getElementById('btn-toggle-physics');
+            if (btn) {
+                btn.innerHTML = isPhysicsPaused 
+                    ? '<i class="fas fa-play"></i> Ativar Movimento' 
+                    : '<i class="fas fa-pause"></i> Pausar Movimento';
+            }
+        }
+
+        function recenterGraph() {
+            if (networkInstance) {
+                networkInstance.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
+            }
+        }
+
+        function renderCorrelationGraph() {
+            const container = document.getElementById('correlation-graph-container');
+            if (!container) return;
+
+            const nodes = [];
+            const edges = [];
+            let nodeId = 1;
+
+            function addNode(opt) {
+                const id = nodeId++;
+                nodes.push({
+                    id: id,
+                    label: opt.label,
+                    title: opt.title || opt.label.replace(/\n/g, ' - '),
+                    color: {
+                        background: opt.bg || '#161b22',
+                        border: opt.border || '#30363d',
+                        highlight: {
+                            background: opt.hoverBg || opt.bg || '#21262d',
+                            border: opt.hoverBorder || '#58a6ff'
+                        }
+                    },
+                    shape: opt.shape || 'box',
+                    shapeProperties: { borderRadius: opt.borderRadius !== undefined ? opt.borderRadius : 6 },
+                    margin: opt.margin || { top: 6, bottom: 6, left: 10, right: 10 },
+                    font: {
+                        color: opt.fontColor || '#e6edf3',
+                        size: opt.fontSize || 11,
+                        face: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        bold: false
+                    },
+                    borderWidth: opt.borderWidth || 1.5,
+                    shadow: { enabled: true, color: 'rgba(0,0,0,0.5)', size: 4, x: 1, y: 1 }
+                });
+                return id;
+            }
+
+            function addEdge(fromId, toId, label, color) {
+                edges.push({
+                    from: fromId,
+                    to: toId,
+                    label: label || '',
+                    font: {
+                        color: '#8b949e',
+                        size: 9,
+                        face: "'Inter', sans-serif",
+                        bold: false,
+                        align: 'middle'
+                    },
+                    color: {
+                        color: color || '#30363d',
+                        highlight: '#58a6ff',
+                        hover: '#8b949e'
+                    },
+                    width: 1.5,
+                    smooth: { type: 'curvedCW', roundness: 0.15 },
+                    arrows: {
+                        to: { enabled: true, scaleFactor: 0.5 }
+                    }
+                });
+            }
+
+            for (const [tipo, items] of Object.entries(searchResults)) {
+                items.forEach(ioc => {
+                    const enrich = (window.enrichmentCache && window.enrichmentCache[ioc.value]) || {};
+
+                    // 1. Nó Central do IOC
+                    const iocNodeId = addNode({
+                        label: `${ioc.value}\n[${tipo.toUpperCase().replace(/S$/, '')}]`,
+                        title: `IOC Alvo: ${ioc.value} (${tipo})`,
+                        bg: '#1c2d42',
+                        border: '#388bfd',
+                        fontColor: '#ffffff',
+                        fontSize: 13,
+                        shape: 'box',
+                        borderRadius: 8,
+                        margin: { top: 10, bottom: 10, left: 14, right: 14 },
+                        borderWidth: 2
+                    });
+
+                    // 2. Cluster MISP Intel
+                    const mispCataloged = !ioc.is_unknown;
+                    const mispDesc = (ioc.desc && ioc.desc !== 'Sem descrição' && ioc.desc !== '') ? ioc.desc : null;
+                    const mispHubId = addNode({
+                        label: mispCataloged ? `MISP: Catalogado\n(ID #${ioc.event_id || 'N/A'})` : `MISP: Não Catalogado`,
+                        title: `MISP Threat Intel\nSeveridade: ${ioc.severity || 'N/A'}\nCategoria: ${ioc.category || 'N/A'}`,
+                        bg: mispCataloged ? '#332211' : '#21262d',
+                        border: mispCataloged ? '#f0883e' : '#484f58',
+                        fontColor: mispCataloged ? '#ffa657' : '#8b949e',
+                        shape: 'box',
+                        fontSize: 11
+                    });
+                    addEdge(iocNodeId, mispHubId, 'misp intel', mispCataloged ? '#f0883e' : '#484f58');
+
+                    if (mispDesc) {
+                        const shortComment = mispDesc.length > 45 ? mispDesc.substring(0, 45) + '...' : mispDesc;
+                        const mispCommentId = addNode({
+                            label: `MISP Obs:\n"${shortComment}"`,
+                            title: `Comentário MISP Completo:\n${mispDesc}`,
+                            bg: '#251b14',
+                            border: '#d29922',
+                            shape: 'box',
+                            fontSize: 10,
+                            fontColor: '#e3b341'
+                        });
+                        addEdge(mispHubId, mispCommentId, 'observação', '#d29922');
+                    }
+
+                    if (ioc.category || ioc.severity) {
+                        const mispMetaId = addNode({
+                            label: `${ioc.category || 'Geral'}\nSeveridade: ${ioc.severity || 'Indefinida'}`,
+                            title: `Categoria: ${ioc.category || 'N/A'}\nSeveridade: ${ioc.severity || 'N/A'}`,
+                            bg: '#221914',
+                            border: '#bd5b00',
+                            shape: 'box',
+                            fontSize: 10,
+                            fontColor: '#ffc680'
+                        });
+                        addEdge(mispHubId, mispMetaId, 'metadados', '#bd5b00');
+                    }
+
+                    // 3. Cluster VirusTotal
+                    const vt = enrich.vt_data;
+                    if (vt && !vt.error && !vt.not_found) {
+                        const malCount = vt.malicious || 0;
+                        const suspCount = vt.suspicious || 0;
+                        const isMal = malCount > 0;
+                        const vtHubId = addNode({
+                            label: `VirusTotal\n${malCount} detecções / ${suspCount} suspeito`,
+                            title: `VirusTotal Score\nMaliciosos: ${malCount}\nSuspeitos: ${suspCount}\nReputação: ${vt.reputation || 0}`,
+                            bg: isMal ? '#3b1d1d' : '#1c3323',
+                            border: isMal ? '#f85149' : '#2ea043',
+                            fontColor: isMal ? '#ff7b72' : '#7ee787',
+                            fontSize: 11,
+                            shape: 'box'
+                        });
+                        addEdge(iocNodeId, vtHubId, 'reputação vt', isMal ? '#f85149' : '#2ea043');
+
+                        const engines = vt.malware_engines || [];
+                        if (engines.length > 0) {
+                            engines.slice(0, 4).forEach(eng => {
+                                const engNodeId = addNode({
+                                    label: `${eng.engine}\n${eng.result}`,
+                                    title: `Motor: ${eng.engine}\nDetecção: ${eng.result}`,
+                                    bg: '#2a1b1b',
+                                    border: '#da3633',
+                                    fontSize: 10,
+                                    fontColor: '#ff7b72',
+                                    shape: 'box'
+                                });
+                                addEdge(vtHubId, engNodeId, 'detectou', '#da3633');
+                            });
+                            if (engines.length > 4) {
+                                const moreEngId = addNode({
+                                    label: `+${engines.length - 4} outros motores`,
+                                    title: engines.slice(4).map(e => `${e.engine}: ${e.result}`).join('\n'),
+                                    bg: '#251b1b',
+                                    border: '#da3633',
+                                    fontSize: 9,
+                                    fontColor: '#ff7b72',
+                                    shape: 'box'
+                                });
+                                addEdge(vtHubId, moreEngId, 'motores adicionais', '#da3633');
+                            }
+                        }
+                    }
+
+                    // 4. Cluster AbuseIPDB
+                    const abuse = enrich.abuse_data;
+                    if (abuse && !abuse.error) {
+                        const score = abuse.abuse_score || 0;
+                        const repCount = abuse.total_reports || 0;
+                        const isBad = score > 15;
+                        const abuseHubId = addNode({
+                            label: `AbuseIPDB\nScore: ${score}% • ${repCount} denúncias`,
+                            title: `AbuseIPDB\nScore: ${score}%\nTotal denúncias: ${repCount}\nUso: ${abuse.usage_type || 'N/A'}\nDomínio: ${abuse.domain || 'N/A'}`,
+                            bg: isBad ? '#351e2f' : '#182c23',
+                            border: isBad ? '#ff7b72' : '#3fb950',
+                            fontColor: isBad ? '#ff7b72' : '#7ee787',
+                            fontSize: 11,
+                            shape: 'box'
+                        });
+                        addEdge(iocNodeId, abuseHubId, 'score abuso', isBad ? '#ff7b72' : '#3fb950');
+
+                        const reports = abuse.reports || [];
+                        if (reports.length > 0) {
+                            reports.slice(0, 2).forEach((rep, rIdx) => {
+                                const clean = (rep.comment || '').replace(/\r?\n|\r/g, ' ').trim();
+                                const short = clean.length > 38 ? clean.substring(0, 38) + '...' : clean;
+                                if (short) {
+                                    const repNodeId = addNode({
+                                        label: `Denúncia #${rIdx + 1}\n"${short}"`,
+                                        title: `Data: ${rep.reported_at || 'N/A'}\nOrigem: ${rep.reporter_country || 'N/A'}\nRelato:\n${clean}`,
+                                        bg: '#261d2b',
+                                        border: '#8957e5',
+                                        fontSize: 9,
+                                        fontColor: '#d2a8ff',
+                                        shape: 'box'
+                                    });
+                                    addEdge(abuseHubId, repNodeId, 'relato', '#8957e5');
+                                }
+                            });
+                        }
+                    }
+
+                    // 5. Cluster AlienVault OTX
+                    const otx = enrich.otx_data;
+                    if (otx) {
+                        const pCount = otx.pulse_count || 0;
+                        const otxHubId = addNode({
+                            label: `AlienVault OTX\n${pCount} Pulso(s) de Ameaça`,
+                            title: `AlienVault OTX Threat Pulses: ${pCount}`,
+                            bg: pCount > 0 ? '#132e2b' : '#162220',
+                            border: pCount > 0 ? '#39c5bb' : '#30363d',
+                            fontColor: pCount > 0 ? '#56d364' : '#8b949e',
+                            fontSize: 11,
+                            shape: 'box'
+                        });
+                        addEdge(iocNodeId, otxHubId, 'otx pulses', pCount > 0 ? '#39c5bb' : '#30363d');
+
+                        const pulses = otx.pulses || [];
+                        if (pulses.length > 0) {
+                            pulses.slice(0, 3).forEach(p => {
+                                const pName = p.name || 'Pulso OTX';
+                                const shortPName = pName.length > 32 ? pName.substring(0, 32) + '...' : pName;
+                                const pNodeId = addNode({
+                                    label: `Pulso OTX:\n${shortPName}`,
+                                    title: `Campanha: ${pName}\nCriado: ${p.created || 'N/A'}\nAutor: ${p.author || 'N/A'}\nTags: ${(p.tags || []).join(', ')}`,
+                                    bg: '#0f2422',
+                                    border: '#39c5bb',
+                                    fontSize: 9,
+                                    fontColor: '#7ee787',
+                                    shape: 'box'
+                                });
+                                addEdge(otxHubId, pNodeId, 'pulso', '#39c5bb');
+
+                                if (p.description) {
+                                    const cleanDesc = p.description.replace(/\r?\n|\r/g, ' ').trim();
+                                    const shortDesc = cleanDesc.length > 38 ? cleanDesc.substring(0, 38) + '...' : cleanDesc;
+                                    const descNodeId = addNode({
+                                        label: `Obs OTX:\n"${shortDesc}"`,
+                                        title: `Comentário do Pulso:\n${cleanDesc}`,
+                                        bg: '#122523',
+                                        border: '#238636',
+                                        fontSize: 9,
+                                        fontColor: '#a7f3d0',
+                                        shape: 'box'
+                                    });
+                                    addEdge(pNodeId, descNodeId, 'relato', '#238636');
+                                }
+                            });
+                        }
+                    }
+
+                    // 6. Cluster Shodan InternetDB
+                    const shodan = enrich.shodan_data;
+                    if (shodan && shodan.ports && shodan.ports.length > 0) {
+                        const shodanHubId = addNode({
+                            label: `Shodan InternetDB\n${shodan.ports.length} portas abertas`,
+                            title: `Portas abertas identificadas: ${shodan.ports.join(', ')}\nCVEs: ${(shodan.vulns || []).join(', ') || 'Nenhuma'}`,
+                            bg: '#162a3b',
+                            border: '#58a6ff',
+                            fontColor: '#79c0ff',
+                            fontSize: 11,
+                            shape: 'box'
+                        });
+                        addEdge(iocNodeId, shodanHubId, 'serviços rede', '#58a6ff');
+
+                        shodan.ports.slice(0, 5).forEach(p => {
+                            let sName = '';
+                            if (p === 80) sName = ' (HTTP)';
+                            else if (p === 443) sName = ' (HTTPS)';
+                            else if (p === 22) sName = ' (SSH)';
+                            else if (p === 21) sName = ' (FTP)';
+                            else if (p === 53) sName = ' (DNS)';
+                            else if (p === 3389) sName = ' (RDP)';
+                            else if (p === 8080) sName = ' (HTTP-Alt)';
+
+                            const pNodeId = addNode({
+                                label: `Porta ${p}${sName}`,
+                                title: `Porta ${p} Aberta`,
+                                bg: '#112233',
+                                border: '#1f6feb',
+                                fontSize: 10,
+                                fontColor: '#79c0ff',
+                                shape: 'box'
+                            });
+                            addEdge(shodanHubId, pNodeId, 'porta', '#1f6feb');
+                        });
+
+                        if (shodan.vulns && shodan.vulns.length > 0) {
+                            shodan.vulns.slice(0, 2).forEach(cve => {
+                                const cveNodeId = addNode({
+                                    label: `Vulnerabilidade:\n${cve}`,
+                                    title: `CVE: ${cve}`,
+                                    bg: '#3d1616',
+                                    border: '#f85149',
+                                    fontSize: 9,
+                                    fontColor: '#ff7b72',
+                                    shape: 'box'
+                                });
+                                addEdge(shodanHubId, cveNodeId, 'cve', '#f85149');
+                            });
+                        }
+                    }
+
+                    // 7. Cluster GeoIP & Infraestrutura
+                    const geo = enrich.geo_data;
+                    if (geo && geo.country) {
+                        const geoHubId = addNode({
+                            label: `${geo.flag || '🌐'} ${geo.country}\n${geo.city || ''}`,
+                            title: `Geolocalização\nPaís: ${geo.country}\nCidade: ${geo.city || 'N/A'}\nISP: ${geo.isp || 'N/A'}\nASN: ${geo.asn || 'N/A'}`,
+                            bg: '#162b1b',
+                            border: '#3fb950',
+                            fontColor: '#7ee787',
+                            fontSize: 11,
+                            shape: 'box'
+                        });
+                        addEdge(iocNodeId, geoHubId, 'geolocalização', '#3fb950');
+
+                        if (geo.isp || geo.asn) {
+                            const ispNodeId = addNode({
+                                label: `ISP: ${(geo.isp || 'N/A').substring(0, 22)}\n${geo.asn || ''}`,
+                                title: `Provedor: ${geo.isp || 'N/A'}\nASN: ${geo.asn || 'N/A'}`,
+                                bg: '#1b231c',
+                                border: '#238636',
+                                fontSize: 10,
+                                fontColor: '#7ee787',
+                                shape: 'box'
+                            });
+                            addEdge(geoHubId, ispNodeId, 'infraestrutura', '#238636');
+                        }
+                    }
+
+                    // 8. Cluster MITRE ATT&CK
+                    const mitre = enrich.mitre_tags;
+                    if (mitre && mitre.length > 0) {
+                        const mitreHubId = addNode({
+                            label: `MITRE ATT&CK\n${mitre.length} Táticas Mapeadas`,
+                            title: `Táticas e Técnicas MITRE ATT&CK associadas ao comportamento do indicador`,
+                            bg: '#2e1b38',
+                            border: '#bc8cff',
+                            fontColor: '#d2a8ff',
+                            fontSize: 11,
+                            shape: 'box'
+                        });
+                        addEdge(iocNodeId, mitreHubId, 'mitre táticas', '#bc8cff');
+
+                        mitre.forEach(t => {
+                            const tNodeId = addNode({
+                                label: `${t.id} - ${t.tactic}\n${t.name}`,
+                                title: `Técnica: ${t.id}\nNome: ${t.name}\nTática: ${t.tactic}`,
+                                bg: '#22162b',
+                                border: '#8957e5',
+                                fontSize: 9,
+                                fontColor: '#e1c2ff',
+                                shape: 'box'
+                            });
+                            addEdge(mitreHubId, tNodeId, 'técnica', '#8957e5');
+                        });
+                    }
+                });
+            }
+
+            // Atualiza o contador de estatísticas na barra superior
+            const statsBadge = document.getElementById('graph-stats-badge');
+            if (statsBadge) {
+                statsBadge.innerText = `${nodes.length} Nós • ${edges.length} Conexões`;
+            }
+
+            const data = {
+                nodes: new vis.DataSet(nodes),
+                edges: new vis.DataSet(edges)
+            };
+
+            const options = {
+                nodes: {
+                    borderWidth: 1.5,
+                    shadow: true,
+                    font: {
+                        face: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        bold: false
+                    }
+                },
+                edges: {
+                    width: 1.5,
+                    smooth: {
+                        type: 'curvedCW',
+                        roundness: 0.12
+                    },
+                    arrows: {
+                        to: { enabled: true, scaleFactor: 0.5 }
+                    }
+                },
+                physics: {
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: {
+                        gravitationalConstant: -60,
+                        centralGravity: 0.012,
+                        springLength: 95,
+                        springConstant: 0.08,
+                        damping: 0.65,
+                        avoidOverlap: 0.7
+                    },
+                    stabilization: {
+                        enabled: true,
+                        iterations: 150,
+                        updateInterval: 25
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 150,
+                    zoomView: true,
+                    dragView: true
+                }
+            };
+
+            if (networkInstance) {
+                try { networkInstance.destroy(); } catch(e) {}
+            }
+            networkInstance = new vis.Network(container, data, options);
+        }
+    </script>
+</body>
+</html>

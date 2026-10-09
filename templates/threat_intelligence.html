@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threat Intelligence - Cortex TIP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Consolas&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li class="active"><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                {% if current_user and current_user.role in ['admin', 'analista'] %}
+                <li class="menu-label">Operações SOC</li>
+                <li><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+                {% endif %}
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+                {% endif %}
+
+                {% if current_user %}
+                <li class="menu-label">Conta</li>
+                <li><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+                {% endif %}
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <!-- Top Bar com Usuário -->
+            <div class="top-bar" style="margin-bottom: 20px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; color: #fff; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-shield-virus" style="color: #58a6ff;"></i>
+                        Central de Inteligência de Ameaças & APTs
+                    </h3>
+                    <span style="font-size: 12px; color: #64748b;">Dossiê tático consolidado de agentes hostis, campanhas ativas e exploração de dia zero</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <a href="/" class="btn-auth-link" style="text-decoration: none;">
+                        <i class="fas fa-arrow-left"></i> Voltar ao Dashboard
+                    </a>
+                    {% if current_user %}
+                    <div class="user-badge">
+                        <i class="fas fa-user-circle" style="color: #58a6ff;"></i>
+                        <span>{{ current_user.username }}</span>
+                        <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="threat-intel-wrapper" style="padding: 0;">
+                <!-- Hero Banner com Métricas de Threat Intel -->
+                <div class="intel-page-hero">
+                    <div class="intel-hero-title">
+                        <h2><i class="fas fa-satellite-dish" style="color: #58a6ff;"></i> MATRIZ DE INTELIGÊNCIA OFENSIVA</h2>
+                        <p>Cruzamento contínuo de dados de telemetria local, base de enriquecimento (Shodan/AbuseIPDB) e catálogo oficial CISA KEV.</p>
+                    </div>
+                    <div class="intel-stats-cards">
+                        <div class="intel-stat-badge">
+                            <span class="intel-stat-num">{{ stats.tracked_apts }}</span>
+                            <span class="intel-stat-lbl">APTs Monitoradas</span>
+                        </div>
+                        <div class="intel-stat-badge">
+                            <span class="intel-stat-num" style="color: #ff1744;">{{ stats.zero_days_count }}</span>
+                            <span class="intel-stat-lbl">Zero-Days KEV</span>
+                        </div>
+                        <div class="intel-stat-badge">
+                            <span class="intel-stat-num">{{ stats.active_iocs }}</span>
+                            <span class="intel-stat-lbl">IOCs Críticos</span>
+                        </div>
+                        <div class="intel-stat-badge">
+                            <span class="intel-stat-num" style="color: #3fb950;">{{ stats.threats_blocked }}</span>
+                            <span class="intel-stat-lbl">Bloqueios Firewall</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Abas de Navegação -->
+                <div class="intel-tabs-nav">
+                    <button class="intel-tab-btn active" onclick="switchIntelTab('actors', this)">
+                        <i class="fas fa-user-secret"></i> Atores de Ameaça & APTs ({{ actors|length }})
+                    </button>
+                    <button class="intel-tab-btn" onclick="switchIntelTab('incidents', this)">
+                        <i class="fas fa-radiation-alt"></i> Dossiê de Incidentes Ativos ({{ threats|length }})
+                    </button>
+                    <button class="intel-tab-btn" onclick="switchIntelTab('cisa-kev', this)">
+                        <i class="fas fa-bug"></i> Vulnerabilidades CISA KEV ({{ zero_days|length }})
+                    </button>
+                    
+                    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-search" style="color: #64748b; font-size: 12px;"></i>
+                        <input type="text" id="intelFilterInput" onkeyup="filterIntelContent()" placeholder="Filtrar por ator, CVE, IP ou técnica..." 
+                               style="background: #081119; border: 1px solid #1a2d3e; border-radius: 4px; padding: 6px 12px; color: #fff; font-size: 11.5px; width: 260px; outline: none;">
+                    </div>
+                </div>
+
+                <!-- SEÇÃO 1: Perfis de APTs e Grupos Criminosos -->
+                <div id="tab-actors" class="intel-tab-content">
+                    <div class="apt-cards-grid" id="aptCardsGrid">
+                        {% for apt in actors %}
+                        <div class="apt-card filterable-item" data-search="{{ apt.name|lower }} {{ apt.alias|lower }} {{ apt.origin|lower }} {{ apt.motivation|lower }} {{ apt.ttps|join(' ')|lower }}">
+                            <div class="apt-header">
+                                <div>
+                                    <h3 class="apt-name">{{ apt.flag }} {{ apt.name }}</h3>
+                                    <div class="apt-alias">{{ apt.alias }}</div>
+                                </div>
+                                <span style="font-size: 10px; color: #ff1744; font-weight: 700; letter-spacing: 0.5px;">
+                                    {{ apt.threat_level|upper }}
+                                </span>
+                            </div>
+
+                            <div class="apt-meta-row">
+                                <span><i class="fas fa-globe-americas" style="color: #58a6ff;"></i> {{ apt.origin }}</span>
+                                <span><i class="fas fa-bullseye" style="color: #ff9100;"></i> {{ apt.motivation }}</span>
+                            </div>
+
+                            <div>
+                                <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Setores Visados:</div>
+                                <div class="apt-sectors-list">
+                                    {% for sec in apt.sectors %}
+                                    <span class="sector-tag">{{ sec }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Técnicas MITRE ATT&CK:</div>
+                                <div class="apt-ttps-list">
+                                    {% for ttp in apt.ttps %}
+                                    <span class="ttp-tag">{{ ttp }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div style="font-size: 11px; color: #94a3b8; line-height: 1.4; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px;">
+                                <strong>Operações Ativas:</strong> {{ apt.active_campaigns }}
+                            </div>
+
+                            <div>
+                                <div style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">IOCs Vinculados:</div>
+                                <div class="apt-iocs-row">
+                                    {% for ioc in apt.associated_iocs %}
+                                    <a href="/search?query={{ ioc }}" class="ioc-pill" title="Investigar no Cortex">
+                                        <i class="fas fa-search" style="font-size: 9px;"></i> {{ ioc }}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- SEÇÃO 2: Dossiê de Incidentes Ativos -->
+                <div id="tab-incidents" class="intel-tab-content" style="display: none;">
+                    <div class="intel-table-card">
+                        <table class="intel-table" id="incidentsTable">
+                            <thead>
+                                <tr>
+                                    <th>IP / Indicador</th>
+                                    <th>País / Origem</th>
+                                    <th>Tipo de Ameaça / Vetor</th>
+                                    <th>Porta / Protocolo</th>
+                                    <th>Severidade</th>
+                                    <th>Provedor / ISP</th>
+                                    <th>Ações Forenses</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for th in threats %}
+                                <tr class="filterable-item" data-search="{{ th.ip }} {{ th.country|lower }} {{ th.threat_type|lower }} {{ th.protocol|lower }} {{ th.isp|lower }}">
+                                    <td style="font-family: 'Consolas', monospace; font-weight: bold; color: #e6edf3;">
+                                        <i class="fas fa-crosshairs" style="color: {% if th.severity == 'Crítico' %}#ff1744{% else %}#ff9100{% endif %}; margin-right: 6px;"></i>
+                                        {{ th.ip }}
+                                    </td>
+                                    <td>{{ th.flag }} {{ th.country }} {% if th.city %}({{ th.city }}){% endif %}</td>
+                                    <td style="font-weight: 600; color: #e2e8f0;">{{ th.threat_type }}</td>
+                                    <td><code>{{ th.port }}/{{ th.protocol }}</code></td>
+                                    <td>
+                                        <span style="font-size: 10px; color: {% if th.severity == 'Crítico' %}#ff1744{% else %}#ff9100{% endif %}; font-weight: 700; letter-spacing: 0.5px;">
+                                            {{ th.severity|upper }}
+                                        </span>
+                                    </td>
+                                    <td style="color: #64748b; font-size: 11px;">{{ th.isp or 'N/A' }}</td>
+                                    <td>
+                                        <a href="/search?query={{ th.ip }}" class="btn-compact-briefing" style="background: #0d1b26; padding: 4px 8px; border-radius: 4px; border: 1px solid #1e364a;">
+                                            <i class="fas fa-search"></i> Investigar
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SEÇÃO 3: Vulnerabilidades CISA KEV (Zero-Days) -->
+                <div id="tab-cisa-kev" class="intel-tab-content" style="display: none;">
+                    <div class="intel-table-card">
+                        <table class="intel-table" id="kevTable">
+                            <thead>
+                                <tr>
+                                    <th>Identificador CVE</th>
+                                    <th>Fabricante / Fornecedor</th>
+                                    <th>Produto Afetado</th>
+                                    <th>Data de Adição ao KEV</th>
+                                    <th>Descrição da Vulnerabilidade</th>
+                                    <th>Status de Ameaça</th>
+                                    <th>Investigação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for kev in zero_days %}
+                                <tr class="filterable-item" data-search="{{ kev.cve_id|lower }} {{ kev.vendor|lower }} {{ kev.product|lower }} {{ kev.name|lower }}">
+                                    <td style="font-family: 'Consolas', monospace; font-weight: bold; color: #ff5252;">
+                                        <i class="fas fa-exclamation-triangle" style="margin-right: 6px;"></i>
+                                        {{ kev.cve_id }}
+                                    </td>
+                                    <td style="font-weight: 600; color: #e6edf3;">{{ kev.vendor }}</td>
+                                    <td>{{ kev.product }}</td>
+                                    <td style="color: #64748b; font-size: 11px;"><i class="fas fa-calendar-alt"></i> {{ kev.date_added }}</td>
+                                    <td style="max-width: 380px; font-size: 11.5px; line-height: 1.3;">{{ kev.name }}</td>
+                                    <td>
+                                        <span style="font-size: 10px; color: #ff1744; font-weight: 700; letter-spacing: 0.5px;">
+                                            EXPLORADO ATIVO
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="/search?query={{ kev.cve_id }}" class="btn-compact-briefing" style="background: #0d1b26; padding: 4px 8px; border-radius: 4px; border: 1px solid #1e364a;">
+                                            <i class="fas fa-search"></i> Buscar no Cortex
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchIntelTab(tabId, btn) {
+            document.querySelectorAll('.intel-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.intel-tab-content').forEach(c => c.style.display = 'none');
+
+            btn.classList.add('active');
+            const target = document.getElementById('tab-' + tabId);
+            if (target) target.style.display = 'block';
+        }
+
+        function filterIntelContent() {
+            const query = document.getElementById('intelFilterInput').value.toLowerCase().trim();
+            const items = document.querySelectorAll('.filterable-item');
+
+            items.forEach(item => {
+                const searchData = item.getAttribute('data-search') || item.innerText.toLowerCase();
+                if (!query || searchData.includes(query)) {
+                    item.style.display = item.tagName === 'TR' ? 'table-row' : 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

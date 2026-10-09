@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adicionar Atributo - Cortex TIP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                <li class="menu-label">Operações SOC</li>
+                <li class="active"><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+                {% endif %}
+
+                {% if current_user %}
+                
+                <li class="menu-label">Conta</li>
+                <li><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+                {% endif %}
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <div class="top-bar">
+                <div>
+                    <h2>Ingestão de Inteligência no MISP</h2>
+                    <p style="color: var(--text-muted); margin: 5px 0 0; font-size: 14px;">
+                        Inserção oficial via API do MISP com rastreamento e auditoria por operador.
+                    </p>
+                </div>
+
+                <div class="user-menu-area">
+                    {% if current_user %}
+                    <a href="/profile" class="user-badge" style="text-decoration: none; cursor: pointer;" title="Meu Perfil">
+                        <i class="fas fa-user-shield"></i>
+                        <span>{{ current_user.first_name }} {{ current_user.last_name }}</span>
+                        <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </a>
+                    <a href="/logout" class="btn-auth-link btn-danger-hover"><i class="fas fa-sign-out-alt"></i> Sair</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ 'error' if category == 'error' else 'sev-Baixa' }}" style="background: {{ 'rgba(76, 175, 80, 0.15)' if category == 'success' else 'rgba(244, 67, 54, 0.15)' }}; color: {{ '#69f0ae' if category == 'success' else '#ff5252' }}; border: 1px solid {{ '#69f0ae' if category == 'success' else '#ff5252' }}; margin-bottom: 25px;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Card Réplica Exata do MISP "Add Attribute" -->
+            <div class="misp-modal-card">
+                <div class="misp-modal-header">
+                    <h3>Add Attribute</h3>
+                    <i class="fas fa-times" style="color: var(--text-muted); cursor: pointer;" onclick="window.history.back()"></i>
+                </div>
+
+                <form action="/add-ioc" method="POST" class="auth-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="misp-row-2col">
+                        <div class="form-group">
+                            <div class="field-label-info">
+                                <span>Category</span>
+                                <i class="fas fa-info-circle" title="Categoria do indicador"></i>
+                            </div>
+                            <select name="category" id="category_select" onchange="updateTypes()" required>
+                                <option value="" disabled selected>(choose one)</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="field-label-info">
+                                <span>Type</span>
+                                <i class="fas fa-info-circle" title="Tipo do atributo"></i>
+                            </div>
+                            <select name="type" id="type_select" required>
+                                <option value="" disabled selected>(choose category first)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="max-width: 50%;">
+                        <div class="field-label-info">
+                            <span>Distribution</span>
+                            <i class="fas fa-info-circle" title="Política de distribuição e compartilhamento"></i>
+                        </div>
+                        <select name="distribution" required>
+                            {% for dist in distributions %}
+                            <option value="{{ dist.value }}" {{ 'selected' if dist.label == 'Inherit event' else '' }}>
+                                {{ dist.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="field-label-info">
+                            <span>Value</span>
+                        </div>
+                        <textarea name="value" rows="5" placeholder="Digite o indicador (IP, Domínio, URL ou Hash). Para múltiplos, insira um por linha." required>{{ request.args.get('value', '') }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="field-label-info">
+                            <span>Contextual Comment</span>
+                        </div>
+                        <input type="text" name="comment" value="{{ request.args.get('comment', '') }}" placeholder="Comentário sobre o incidente ou contexto da ameaça...">
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; border-top: 1px solid #30363d; padding-top: 18px;">
+                        <a href="/" class="btn-auth-link">Cancelar</a>
+                        <button type="submit" class="btn-primary-block" style="width: auto; margin: 0; padding: 10px 24px;">
+                            <i class="fas fa-plus"></i> Submit
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const typesByCategory = {{ types_by_category | tojson }};
+
+        function updateTypes() {
+            const catSelect = document.getElementById('category_select');
+            const typeSelect = document.getElementById('type_select');
+            const selectedCat = catSelect.value;
+
+            typeSelect.innerHTML = '';
+
+            if (typesByCategory[selectedCat]) {
+                typesByCategory[selectedCat].forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t;
+                    opt.textContent = t;
+                    typeSelect.appendChild(opt);
+                });
+            } else {
+                const opt = document.createElement('option');
+                opt.value = 'text';
+                opt.textContent = 'text';
+                typeSelect.appendChild(opt);
+            }
+        }
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const prefillType = urlParams.get('type');
+            if (prefillType) {
+                const catSelect = document.getElementById('category_select');
+                for (const [cat, types] of Object.entries(typesByCategory)) {
+                    if (types.includes(prefillType)) {
+                        catSelect.value = cat;
+                        updateTypes();
+                        document.getElementById('type_select').value = prefillType;
+                        break;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

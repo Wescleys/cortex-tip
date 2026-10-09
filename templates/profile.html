@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil - Cortex TIP</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+    <div class="wrapper">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo" class="logo"></a>
+            </div>
+
+            <ul class="list-unstyled components">
+                <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="/search"><i class="fas fa-search"></i> Buscar IOC</a></li>
+                <li><a href="/threat-intelligence"><i class="fas fa-brain"></i> Threat Intel</a></li>
+                <li><a href="/network-traffic"><i class="fas fa-satellite-dish"></i> Tráfego de Rede</a></li>
+                
+                {% if current_user and current_user.role in ['admin', 'analista'] %}
+                <li class="menu-label">Operações SOC</li>
+                <li><a href="/add-ioc"><i class="fas fa-plus-circle"></i> Adicionar IOC</a></li>
+                <li><a href="/audit"><i class="fas fa-clipboard-list"></i> Auditoria de IOCs</a></li>
+                {% endif %}
+
+                {% if current_user and current_user.role == 'admin' %}
+                <li class="menu-label">Administração</li>
+                <li><a href="/users"><i class="fas fa-users-cog"></i> Usuários</a></li>
+                <li><a href="/settings"><i class="fas fa-cogs"></i> Configurações</a></li>
+                {% endif %}
+
+                
+                <li class="menu-label">Conta</li>
+                <li class="active"><a href="/profile"><i class="fas fa-id-badge"></i> Meu Perfil</a></li>
+
+                <li class="menu-label">Listas MISP</li>
+                <li><a href="/misp_ips.json" target="_blank"><i class="fas fa-globe"></i> IPs</a></li>
+                <li><a href="/misp_urls.json" target="_blank"><i class="fas fa-link"></i> URLs</a></li>
+                <li><a href="/misp_dominios.json" target="_blank"><i class="fas fa-building"></i> Domínios</a></li>
+                <li><a href="/misp_hashs.json" target="_blank"><i class="fas fa-key"></i> Hashes</a></li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <div class="top-bar">
+                <div>
+                    <h2>Meu Perfil & Segurança</h2>
+                    <p style="color: var(--text-muted); margin: 5px 0 0; font-size: 14px;">
+                        Gerencie suas informações cadastrais e credenciais de acesso ao Cortex TIP.
+                    </p>
+                </div>
+
+                <div class="user-menu-area">
+                    {% if current_user %}
+                    <a href="/profile" class="user-badge" style="text-decoration: none; cursor: pointer;" title="Meu Perfil">
+                        <i class="fas fa-user-shield"></i>
+                        <span>{{ current_user.first_name }} {{ current_user.last_name }}</span>
+                        <span class="role-tag role-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </a>
+                    <a href="/logout" class="btn-auth-link btn-danger-hover"><i class="fas fa-sign-out-alt"></i> Sair</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ 'error' if category == 'error' else 'success' if category == 'success' else 'warning' }}" style="margin-bottom: 20px;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="profile-container-grid">
+                <!-- Coluna Esquerda: Card de Identidade do Usuário -->
+                <div class="profile-summary-card">
+                    <div class="profile-avatar-wrapper">
+                        <div class="profile-avatar-circle">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <h3 class="profile-user-name">{{ user.first_name }} {{ user.last_name }}</h3>
+                        <span class="profile-user-email">{{ user.email }}</span>
+                        <div style="margin-top: 10px;">
+                            <span class="role-tag role-{{ user.role }}" style="font-size: 11px; padding: 4px 12px;">{{ user.role|upper }}</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-meta-list">
+                        <div class="profile-meta-item">
+                            <span class="meta-label"><i class="fas fa-id-card"></i> ID do Usuário</span>
+                            <span class="meta-value">#{{ user.id }}</span>
+                        </div>
+                        <div class="profile-meta-item">
+                            <span class="meta-label"><i class="fas fa-calendar-check"></i> Cadastrado em</span>
+                            <span class="meta-value">{{ user.created_at }}</span>
+                        </div>
+                        <div class="profile-meta-item">
+                            <span class="meta-label"><i class="fas fa-shield-alt"></i> Status da Conta</span>
+                            <span class="meta-value" style="color: #69f0ae;"><i class="fas fa-check-circle"></i> Ativa</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna Direita: Formulário de Edição -->
+                <div class="profile-forms-column">
+                    <form action="/profile" method="POST" class="auth-form" style="max-width: 100%;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <!-- Seção 1: Dados Pessoais -->
+                        <div class="panel-card" style="margin-bottom: 25px;">
+                            <div class="panel-header">
+                                <h3><i class="fas fa-user-edit" style="color: var(--color-ip);"></i> Dados Pessoais</h3>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <label>Nome</label>
+                                    <input type="text" name="first_name" value="{{ user.first_name }}" required>
+                                </div>
+                                <div>
+                                    <label>Sobrenome</label>
+                                    <input type="text" name="last_name" value="{{ user.last_name }}" required>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 15px;">
+                                <label>E-mail Corporativo</label>
+                                <input type="email" name="email" value="{{ user.email }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Seção 2: Segurança & Senha -->
+                        <div class="panel-card" style="margin-bottom: 25px;">
+                            <div class="panel-header">
+                                <h3><i class="fas fa-key" style="color: #ffab40;"></i> Alterar Senha de Acesso</h3>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-muted); margin-top: -5px; margin-bottom: 15px;">
+                                <i class="fas fa-info-circle"></i> Deixe os campos de senha em branco caso queira atualizar apenas os seus dados cadastrais.
+                            </p>
+
+                            <div style="margin-bottom: 15px;">
+                                <label>Senha Atual</label>
+                                <input type="password" name="current_password" placeholder="Digite sua senha atual para autorizar a troca">
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <label>Nova Senha</label>
+                                    <input type="password" name="new_password" placeholder="Mínimo 8 caracteres" minlength="8">
+                                </div>
+                                <div>
+                                    <label>Confirmar Nova Senha</label>
+                                    <input type="password" name="confirm_password" placeholder="Repita a nova senha" minlength="8">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ação de Salvar -->
+                        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                            <a href="/" class="btn-tool" style="padding: 10px 20px; font-size: 13px; text-decoration: none;">Cancelar</a>
+                            <button type="submit" class="btn-primary-block" style="width: auto; margin: 0; padding: 10px 24px;">
+                                <i class="fas fa-save"></i> Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

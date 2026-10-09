@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar - Cortex Threat Intel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="auth-page-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <a href="/"><img src="{{ platform_logo }}" alt="Logo Cortex"></a>
+                <h3>Autenticação SOC</h3>
+                <p>Acesse com suas credenciais de Analista ou Administrador.</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ 'error' if category == 'error' else 'warning' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="/login" method="POST" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+                <div class="form-group">
+                    <label><i class="fas fa-envelope"></i> E-mail</label>
+                    <input type="email" name="email" placeholder="usuario@cortex.local" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-lock"></i> Senha</label>
+                    <input type="password" name="password" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="btn-primary-block">
+                    <i class="fas fa-sign-in-alt"></i> Entrar no Sistema
+                </button>
+
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 13px;">
+                        <i class="fas fa-arrow-left"></i> Voltar ao Dashboard Público
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
