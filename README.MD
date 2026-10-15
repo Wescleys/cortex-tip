@@ -27,53 +27,14 @@ Ele atua como o cérebro central de inteligência da sua infraestrutura de segur
 
 ---
 
-## ⚡ Instalação (Get Started)
-
-Instale globalmente no seu sistema operacional via **pipx** (recomendado):
-
-```bash
-pipx install cortex-tip
-```
-
-Ou com **uv**:
-
-```bash
-uv tool install cortex-tip
-```
-
-Ou diretamente com **pip**:
-
-```bash
-pip install cortex-tip
-```
-
----
-
 ## 🚀 Inicialização Rápida
 
 Com o Docker ativo na máquina, basta digitar no terminal:
 
 ```bash
-cortex-tip
+cd cortex-tip
+docker compose up -d --build
 ```
-
-O comando baixa e inicializa automaticamente a stack completa:
-- 🗄️ **MariaDB 11.4 LTS** isolado com volume persistente de dados.
-- ⚡ **Cortex TIP Web App** pré-compilado e pronto na porta **`80`**.
-
-Acesse o painel no navegador: **`http://localhost:80`**
-
-### Comandos de Gerenciamento da CLI:
-
-| Comando | Descrição |
-| :--- | :--- |
-| `cortex-tip` ou `cortex-tip start` | Inicia a plataforma completa (Banco MariaDB + Interface Web) |
-| `cortex-tip status` | Exibe o estado de execução e integridade dos contêineres |
-| `cortex-tip logs` | Acompanha os logs operacionais e de eventos em tempo real |
-| `cortex-tip update` | Atualiza automaticamente para a última imagem do Docker Hub |
-| `cortex-tip stop` | Pausa os serviços mantendo todos os dados e volumes salvos |
-| `cortex-tip db:up` | Sobe exclusivamente o contêiner do MariaDB na porta `3306` |
-
 ---
 
 ## 🚀 Principais Capacidades da Plataforma
